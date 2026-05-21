@@ -6,6 +6,13 @@ through Loxone's native **Wallbox** block.
 
 This is the Loxone counterpart of the [Home Assistant integration](https://github.com/Veton-ev/HA-Veton).
 
+## Screenshot
+
+![Loxone Wallbox visualization](docs/images/wallbox-preview.svg)
+
+> Illustrative mockup of the Wallbox visualization. A real screenshot from the
+> Loxone app/Config is welcome — drop a PNG into `docs/images/` and update this.
+
 ## What's included
 
 - **`Veton.Loxone`** — a Loxone Config project (Config 16.x) containing:
@@ -47,6 +54,19 @@ This is the Loxone counterpart of the [Home Assistant integration](https://githu
 | Locking | X303 | write |
 
 > Connector offset = `connector × 1000`, so connector 1 → registers `1xxx`.
+
+## Multiple charging points
+
+This project covers **one charging point** (connector 1, the `Veton - Charger 1`
+Modbus device). For a controller with several charging points, **duplicate** the
+Modbus device + its Wallbox block per point and shift every register address by
+`connector × 1000`:
+
+| Charging point | Register base | e.g. max current |
+|---|---|---|
+| 1 | `1xxx` | `1301` |
+| 2 | `2xxx` | `2301` |
+| 3 | `3xxx` | `3301` |
 
 ## Notes
 
