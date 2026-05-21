@@ -21,6 +21,10 @@ This is the Loxone counterpart of the [Home Assistant integration](https://githu
     voltage & current, vehicle status, error code, release mode, SOC),
   - write outputs for **charging release**, **max charging current**, and **locking**,
   - a **Wallbox** function block and a visualization page.
+- **`MB_Veton.xml`** — a **Modbus device template** (the format the Loxone
+  Library expects). Importing it adds the CHARX register map (the 12 sensors +
+  3 actuators above) to a Modbus device in one step, without the rest of the
+  project.
 
 ## Requirements
 
@@ -68,12 +72,26 @@ Modbus device + its Wallbox block per point and shift every register address by
 | 2 | `2xxx` | `2301` |
 | 3 | `3xxx` | `3301` |
 
+## Modbus device template (`MB_Veton.xml`)
+
+For just the charger I/O (no full project), use the Modbus device template:
+
+1. In Loxone Config, select the **Modbus Extension** (or Modbus TCP) in the
+   periphery tree → ribbon **Device templates → Import template** → pick
+   `MB_Veton.xml`. *(Or copy it to `C:\ProgramData\Loxone\LoxoneConfig <ver>\ENG\Comm\` — the filename must start with `MB_`.)*
+2. Add the device, set the charger's **IP** (port `502`), then wire the inputs/
+   outputs to a Wallbox block.
+
+The template targets **charging point 1** (registers `1xxx`); for more points,
+offset every address by `connector × 1000` (see above).
+
+This is also the file to submit to the official **[Loxone Library](https://library.loxone.com/)**
+(curated by Loxone).
+
 ## Notes
 
 - Ships with the Modbus server **IP blank** and the document **APPKEY cleared** —
   set your own on import.
-- Can also be submitted to the official **Loxone Library** (a curated process
-  done from within Loxone Config / Loxone's portal).
 
 ## License
 
