@@ -1,0 +1,113 @@
+# Gitleaks config for Veton repos — installed as <repo>/.gitleaks.toml by kit/apply.sh.
+#
+# Default rules (github-pat, aws, private keys, jwt, generic-api-key, ...) PLUS custom rules for the
+# shapes actually seen in this estate. Allowlisting is BY PATH ONLY, for fixture directories and
+# lockfiles. Never allowlist by phrase or regex on content: the wording that sits next to a real
+# credential ("see 60-access", "never the value", "example") is exactly the wording that would
+# silence the scanner (lesson from the handbook's first scanner, 2026-08-17).
+#
+# Test locally:  gitleaks git --pre-commit --staged --redact -c .gitleaks.toml
+#                gitleaks dir . -c .gitleaks.toml --redact --no-banner
+title = "veton-guardrail-kit"
+
+[extend]
+useDefault = true
+
+# ---------------------------------------------------------------------------------------------
+# Custom rules. Regex syntax is Go RE2 (no lookahead). `secretGroup` = capture group holding the
+# secret. Values starting with `$`, `{` or `<` are excluded in the regex itself (they are
+# variable references / templates, not values).
+# ---------------------------------------------------------------------------------------------
+
+[[rules]]
+id = "veton-hmac-hex"
+description = "HMAC / shared-secret style 32+ hex chars assigned to a secret-ish name"
+regex = '''(?i)\b[a-z0-9_.-]*(hmac|secret|token|apikey|api_key|passwd|password|pass|pw)[a-z0-9_.-]*["']?\s*(=|:|=>|\?=|:=)\s*["']?([0-9a-f]{32,128})\b'''
+secretGroup = 3
+keywords = ["hmac", "secret", "token", "apikey", "api_key", "passwd", "password", "pass", "pw"]
+
+[[rules]]
+id = "veton-sshpass"
+description = "sshpass -p <password> on the command line"
+regex = '''sshpass\s+-p\s*["']?([^\s"'$`][^\s"']*)'''
+secretGroup = 1
+keywords = ["sshpass"]
+
+[[rules]]
+id = "veton-pass-assignment"
+description = "PASS= / PASSWORD= / *_PASS= assignment in shell, Makefile, env or ini files"
+regex = '''(?i)(^|[^a-z0-9_])(pass|[a-z0-9]*_pass|password|passwd|passphrase)(word|wd|phrase)?\s*(=|\?=|:=)\s*["']?([^\s"'$<{`][^\s"']{3,})'''
+secretGroup = 5
+keywords = ["pass", "password", "passwd", "passphrase"]
+[[rules.allowlists]]
+description = "obvious placeholders — checked against the VALUE only, never the surrounding prose"
+regexTarget = "secret"
+regexes = ['''(?i)^(changeme|change_me|example|placeholder|redacted|xxx+|your[-_]|<[a-z_ -]+>|none|null|true|false|\*+|\.\.\.)$''']
+
+[[rules]]
+id = "veton-yaml-password"
+description = "password: value in YAML / docker-compose / ini"
+regex = '''(?im)^\s*-?\s*["']?[a-z0-9_.-]*pass(word|wd|phrase)?["']?\s*:\s*["']?([^\s"'$<{#`][^\s"'#]{3,})'''
+secretGroup = 2
+keywords = ["password", "passwd", "passphrase", "pass:"]
+[[rules.allowlists]]
+description = "obvious placeholders — VALUE only"
+regexTarget = "secret"
+regexes = ['''(?i)^(changeme|change_me|example|placeholder|redacted|xxx+|your[-_]|none|null|true|false|\*+|\.\.\.)$''']
+
+[[rules]]
+id = "veton-url-inline-credentials"
+description = "postgres://user:pass@ and other connection URLs with an inline password"
+regex = '''(?i)\b(postgres(ql)?|mysql|mariadb|mongodb(\+srv)?|redis|rediss|amqps?|mqtts?|ftp|sftp|https?)://[^\s:/@"']+:([^\s@"'$<{`][^\s@"']{2,})@'''
+secretGroup = 4
+keywords = ["://"]
+[[rules.allowlists]]
+description = "obvious placeholders — VALUE only"
+regexTarget = "secret"
+regexes = ['''(?i)^(pass(word)?|changeme|example|placeholder|redacted|xxx+|secret|your[-_].*)$''']
+
+[[rules]]
+id = "veton-cloudflare-tunnel-token"
+description = "Cloudflare tunnel token (long base64 starting eyJ, no dots — not a JWT)"
+regex = '''\beyJ[A-Za-z0-9+/=_-]{120,}\b'''
+keywords = ["eyJ"]
+
+[[rules]]
+id = "veton-github-token"
+description = "GitHub token (ghp_/gho_/ghu_/ghs_/ghr_/github_pat_)"
+regex = '''\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}\b|\bgithub_pat_[A-Za-z0-9_]{40,}\b'''
+keywords = ["ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_"]
+
+[[rules]]
+id = "veton-anthropic-key"
+description = "Anthropic API / admin key"
+regex = '''\bsk-ant-[A-Za-z0-9_-]{20,}\b'''
+keywords = ["sk-ant-"]
+
+[[rules]]
+id = "veton-private-key-block"
+description = "PEM private key block (belt and braces beside the default rule)"
+regex = '''-----BEGIN [A-Z ]*PRIVATE KEY( BLOCK)?-----'''
+keywords = ["PRIVATE KEY"]
+
+# ---------------------------------------------------------------------------------------------
+# Global allowlist — PATHS ONLY. No content regexes, no stopwords.
+# ---------------------------------------------------------------------------------------------
+[[allowlists]]
+description = "known fixture directories and lockfiles (by path only)"
+paths = [
+  '''(^|/)\.gitleaks\.toml$''',
+  '''(^|/)kit/gitleaks\.toml$''',
+  '''(^|/)testdata/''',
+  '''(^|/)__fixtures__/''',
+  '''(^|/)fixtures/''',
+  '''(^|/)test/fixtures/''',
+  '''(^|/)tests/fixtures/''',
+  '''(^|/)go\.sum$''',
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)pnpm-lock\.yaml$''',
+  '''(^|/)yarn\.lock$''',
+  '''(^|/)pubspec\.lock$''',
+  '''(^|/)poetry\.lock$''',
+  '''(^|/)Cargo\.lock$''',
+]

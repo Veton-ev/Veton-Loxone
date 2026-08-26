@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Guardrail-kit pre-commit hook: secret scan of STAGED content. Exit 1 = commit refused.
+# Installed by kit/install-hooks.sh (git config core.hooksPath .githooks).
+#
+# Layer 1: gitleaks (if installed) with the repo's .gitleaks.toml.
+# Layer 2: fallback grep with the same shapes when gitleaks is absent — weaker (no entropy, no
+#          default rules) but never silent. Install gitleaks to get the real scanner.
+# Bypass for a genuine false positive: `git commit --no-verify` — and then say so in the PR,
+# because CI runs the same scanner and will fail anyway.
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+CFG=""
+[ -f .gitleaks.toml ] && CFG=".gitleaks.toml"
+
+if command -v gitleaks >/dev/null 2>&1; then
+  set +e
+  if gitleaks git --help 2>/dev/null | grep -q -- '--staged'; then
+    # gitleaks >= 8.19
+    gitleaks git --pre-commit --staged --redact --no-banner ${CFG:+-c "$CFG"} .
+  else
+    # gitleaks < 8.19 (`protect` is the old name for the same scan)
+    gitleaks protect --staged --redact --no-banner ${CFG:+-c "$CFG"}
+  fi
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    echo "❌ pre-commit: gitleaks found secret-shaped content in the staged changes (rc=$rc). Commit refused." >&2
+    echo "   Remove the value (use an env var / secret store), then re-stage. CI runs the same scan." >&2
+    exit 1
+  fi
+  exit 0
+fi
+
+# ---------------------------------------------------------------- fallback: grep (no gitleaks)
+echo "⚠️  pre-commit: gitleaks not installed — using the weaker grep fallback. Install gitleaks: https://github.com/gitleaks/gitleaks#installing" >&2
+# Same shapes as kit/gitleaks.toml, in POSIX ERE. Case-insensitive where the TOML rule is.
+PATTERNS=(
+  'sshpass[[:space:]]+-p[[:space:]]*["'"'"']?[^[:space:]"'"'"'$`][^[:space:]"'"'"']*'
+  '(^|[^A-Za-z0-9_])(pass|[A-Za-z0-9]*_pass|password|passwd|passphrase)(word|wd|phrase)?[[:space:]]*(=|\?=|:=)[[:space:]]*["'"'"']?[^[:space:]"'"'"'$<{`][^[:space:]"'"'"']{3,}'
+  '^[[:space:]]*-?[[:space:]]*["'"'"']?[A-Za-z0-9_.-]*pass(word|wd|phrase)?["'"'"']?[[:space:]]*:[[:space:]]*["'"'"']?[^[:space:]"'"'"'$<{#`][^[:space:]"'"'"'#]{3,}'
+  '(postgres(ql)?|mysql|mariadb|mongodb(\+srv)?|rediss?|amqps?|mqtts?|s?ftp|https?)://[^[:space:]:/@"'"'"']+:[^[:space:]@"'"'"'$<{`][^[:space:]@"'"'"']{2,}@'
+  '(hmac|secret|token|apikey|api_key|passwd|password|pass|pw)[A-Za-z0-9_.-]*["'"'"']?[[:space:]]*(=|:|=>|\?=|:=)[[:space:]]*["'"'"']?[0-9a-fA-F]{32,128}([^0-9a-fA-F]|$)'
+  'eyJ[A-Za-z0-9+/=_-]{120,}'
+  '(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{40,}'
+  'sk-ant-[A-Za-z0-9_-]{20,}'
+  '-----BEGIN [A-Z ]*PRIVATE KEY'
+  'AKIA[0-9A-Z]{16}'
+  'xox[abprs]-[A-Za-z0-9-]{10,}'
+  'AIza[0-9A-Za-z_-]{35}'
+)
+# Path allowlist — mirrors the TOML (paths only).
+SKIP_RE='(^|/)(\.gitleaks\.toml|kit/gitleaks\.toml|go\.sum|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|pubspec\.lock|poetry\.lock|Cargo\.lock)$|(^|/)(testdata|__fixtures__|fixtures|test/fixtures|tests/fixtures)/'
+# Placeholder check is applied to the MATCHED VALUE only (the tail of the match), never to the line:
+# a line-level phrase filter would silence a real secret that happens to share a line with "example".
+PLACEHOLDER_VALUE_RE='(=|:|-p)[[:space:]]*["'"'"']?(changeme|change_me|placeholder|redacted|example|xxx+|your[-_][a-z_-]*|password|passwd|pass|secret|none|null|true|false)@?[[:space:]]*$'
+fail=0
+while IFS= read -r -d '' f; do
+  printf '%s' "$f" | grep -qE "$SKIP_RE" && continue
+  content="$(git show ":$f" 2>/dev/null || true)"
+  [ -n "$content" ] || continue
+  printf '%s' "$content" | grep -qI . || continue   # binary
+  for p in "${PATTERNS[@]}"; do
+    hits="$(printf '%s\n' "$content" | grep -noEi -- "$p" | grep -vEi -- "$PLACEHOLDER_VALUE_RE" || true)"
+    if [ -n "$hits" ]; then
+      # print file:line only — never the matched value
+      printf '%s\n' "$hits" | cut -d: -f1 | while read -r ln; do echo "❌ secret-shaped content: $f:$ln" >&2; done
+      fail=1
+    fi
+  done
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+if [ "$fail" -ne 0 ]; then
+  echo "❌ pre-commit: staged changes contain secret-shaped content. Commit refused." >&2
+  echo "   Remove the value (env var / secret store), re-stage. CI runs gitleaks with the same shapes." >&2
+  exit 1
+fi
+exit 0
