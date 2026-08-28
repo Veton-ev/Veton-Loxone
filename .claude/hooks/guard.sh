@@ -180,7 +180,7 @@ check_head_policy() { # `git push` with no refspec / HEAD: pushes the CURRENT br
 
 check_git_push() {
   local -a A=("$@")
-  local i=0 n=${#A[@]} a remote="" src dest
+  local i=0 n=${#A[@]} a remote="" src dest tags_only=0
   local -a refspecs=()
   while [ "$i" -lt "$n" ]; do
     a="${A[$i]}"; i=$((i + 1))
@@ -188,12 +188,16 @@ check_git_push() {
       --force|--force-with-lease|--force-with-lease=*|--force-if-includes|--mirror|--all|--branches|--delete|--prune|-d)
         block "git push $a (force / delete / mirror is never done from an agent session)" ;;
       -o|--push-option|--repo|--receive-pack|--exec) i=$((i + 1)); continue ;;
+      --tags) tags_only=1; continue ;;   # `git push --tags` pushes refs/tags/* only, never the current branch —
+                                         # it is the documented release trigger (Codemagic / TestFlight), so it must
+                                         # work from any checkout, `main` included. `--follow-tags` still pushes the
+                                         # branch and keeps the current-branch policy; -f/--force still block.
       --*) continue ;;
       -*) [[ "$a" =~ ^-[A-Za-z]*[fd] ]] && block "git push $a contains -f (force) or -d (delete)"; continue ;;
       *) if [ -z "$remote" ]; then remote="$a"; else refspecs+=("$a"); fi ;;
     esac
   done
-  if [ "${#refspecs[@]}" -eq 0 ]; then check_head_policy; return 0; fi
+  if [ "${#refspecs[@]}" -eq 0 ]; then [ "$tags_only" = 1 ] || check_head_policy; return 0; fi
   for a in "${refspecs[@]}"; do
     [[ "$a" == +* ]] && block "git push with a '+' refspec ($a) is a force push"
     if [[ "$a" == *:* ]]; then src="${a%%:*}"; dest="${a#*:}"; else src="$a"; dest="$a"; fi

@@ -37,9 +37,12 @@ echo "⚠️  pre-commit: gitleaks not installed — using the weaker grep fallb
 # Same shapes as kit/gitleaks.toml, in POSIX ERE. Case-insensitive where the TOML rule is.
 PATTERNS=(
   'sshpass[[:space:]]+-p[[:space:]]*["'"'"']?[^[:space:]"'"'"'$`][^[:space:]"'"'"']*'
-  '(^|[^A-Za-z0-9_])(pass|[A-Za-z0-9]*_pass|password|passwd|passphrase)(word|wd|phrase)?[[:space:]]*(=|\?=|:=)[[:space:]]*["'"'"']?[^[:space:]"'"'"'$<{`][^[:space:]"'"'"']{3,}'
-  '^[[:space:]]*-?[[:space:]]*["'"'"']?[A-Za-z0-9_.-]*pass(word|wd|phrase)?["'"'"']?[[:space:]]*:[[:space:]]*["'"'"']?[^[:space:]"'"'"'$<{#`][^[:space:]"'"'"'#]{3,}'
-  '(postgres(ql)?|mysql|mariadb|mongodb(\+srv)?|rediss?|amqps?|mqtts?|s?ftp|https?)://[^[:space:]:/@"'"'"']+:[^[:space:]@"'"'"'$<{`][^[:space:]@"'"'"']{2,}@'
+  # PASS=value (shell/env: no blanks around `=`) or Makefile `?=`/`:=`; unquoted, same line, >=8 chars
+  '(^|[^A-Za-z0-9_])(pass|[A-Za-z0-9]*_pass|password|passwd|passphrase)(word|wd|phrase)?(=|[[:blank:]]*(\?=|:=)[[:blank:]]*)[^[:space:]"'"'"'$<{`(\[][^[:space:]"'"'"']{7,}'
+  # password-named key with a QUOTED literal (>=8 chars) on the same line, any language
+  '[A-Za-z0-9_.-]*pass(word|wd|phrase)?["'"'"']?[[:blank:]]*(=>|:=|\?=|=|:)[[:blank:]]*["'"'"'][^[:space:]"'"'"'$<{`][^"'"'"']{7,}["'"'"']'
+  # URL with inline credentials — password of >=1 char (placeholders filtered on the value below)
+  '(postgres(ql)?|mysql|mariadb|mongodb(\+srv)?|rediss?|amqps?|mqtts?|s?ftp|https?)://[^[:space:]:/@"'"'"']+:[^[:space:]@"'"'"'$<{`][^[:space:]@"'"'"']*@'
   '(hmac|secret|token|apikey|api_key|passwd|password|pass|pw)[A-Za-z0-9_.-]*["'"'"']?[[:space:]]*(=|:|=>|\?=|:=)[[:space:]]*["'"'"']?[0-9a-fA-F]{32,128}([^0-9a-fA-F]|$)'
   'eyJ[A-Za-z0-9+/=_-]{120,}'
   '(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{40,}'
@@ -49,18 +52,34 @@ PATTERNS=(
   'xox[abprs]-[A-Za-z0-9-]{10,}'
   'AIza[0-9A-Za-z_-]{35}'
 )
+# Only in config formats (yaml/ini/conf): `password: value` UNQUOTED. In code that shape is a type or a
+# variable (`password: string`, `password: mqttPassword,`) — mirrors the TOML rule's `path`. (scan-ok: non-value shape)
+CFG_FILE_RE='\.([Yy][Aa]?[Mm][Ll]|[Ii][Nn][Ii]|[Cc][Ff][Gg]|[Cc][Oo][Nn][Ff]|[Pp][Rr][Oo][Pp][Ee][Rr][Tt][Ii][Ee][Ss])$'
+CFG_PATTERNS=(
+  '^[[:blank:]]*-?[[:blank:]]*["'"'"']?[A-Za-z0-9_.-]*pass(word|wd|phrase)?["'"'"']?[[:blank:]]*[:=][[:blank:]]*["'"'"']?[^[:space:]"'"'"'$<{#`][^[:space:]"'"'"'#]{7,}'
+)
+# Key at end of line, quoted literal on the NEXT line (dart-format wraps `defaultValue:\n 'value'` and
+# `xPassword =\n 'value'`). Lines are joined with a marker first, so the check stays line-based.
+# `defaultValue:` (Flutter-only key) also matches on the same line; `default:`/`*password` need the join.
+NL_JOIN_SED='/([Dd]efault[Vv]alue|[Dd]efault|[Pp]ass([Ww]ord|[Ww]d|[Pp]hrase)?)[[:blank:]]*[:=][[:blank:]]*$/{
+N
+s/\n[[:blank:]]*/__NL__/
+}'
+NL_PATTERN='([Dd]efault[Vv]alue[[:blank:]]*:[[:blank:]]*(__NL__)?|([Dd]efault|[A-Za-z0-9_.-]*[Pp]ass([Ww]ord|[Ww]d|[Pp]hrase)?)[[:blank:]]*[:=][[:blank:]]*__NL__)["'"'"'][^[:space:]"'"'"'$<{`][^"'"'"']{7,}["'"'"']'
 # Path allowlist — mirrors the TOML (paths only).
 SKIP_RE='(^|/)(\.gitleaks\.toml|kit/gitleaks\.toml|go\.sum|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|pubspec\.lock|poetry\.lock|Cargo\.lock)$|(^|/)(testdata|__fixtures__|fixtures|test/fixtures|tests/fixtures)/'
 # Placeholder check is applied to the MATCHED VALUE only (the tail of the match), never to the line:
 # a line-level phrase filter would silence a real secret that happens to share a line with "example".
-PLACEHOLDER_VALUE_RE='(=|:|-p)[[:space:]]*["'"'"']?(changeme|change_me|placeholder|redacted|example|xxx+|your[-_][a-z_-]*|password|passwd|pass|secret|none|null|true|false)@?[[:space:]]*$'
+PLACEHOLDER_VALUE_RE='(=|:|-p|__NL__)[[:space:]]*["'"'"']?(changeme|change_me|placeholder|redacted|example|xxx+|your[-_][a-z_-]*|password|passwd|pass|secret|none|null|true|false|https?://[^@]*)["'"'"']?@?[[:space:]]*$'
 fail=0
 while IFS= read -r -d '' f; do
   printf '%s' "$f" | grep -qE "$SKIP_RE" && continue
   content="$(git show ":$f" 2>/dev/null || true)"
   [ -n "$content" ] || continue
   printf '%s' "$content" | grep -qI . || continue   # binary
-  for p in "${PATTERNS[@]}"; do
+  pats=("${PATTERNS[@]}")
+  printf '%s' "$f" | grep -qE "$CFG_FILE_RE" && pats+=("${CFG_PATTERNS[@]}")
+  for p in "${pats[@]}"; do
     hits="$(printf '%s\n' "$content" | grep -noEi -- "$p" | grep -vEi -- "$PLACEHOLDER_VALUE_RE" || true)"
     if [ -n "$hits" ]; then
       # print file:line only — never the matched value
@@ -68,6 +87,12 @@ while IFS= read -r -d '' f; do
       fail=1
     fi
   done
+  # next-line literal: join "key:<EOL>" with the following line, then grep (line numbers are approximate)
+  hits="$(printf '%s\n' "$content" | sed -E "$NL_JOIN_SED" | grep -noE -- "$NL_PATTERN" | grep -vEi -- "$PLACEHOLDER_VALUE_RE" || true)"
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits" | cut -d: -f1 | while read -r ln; do echo "❌ secret-shaped content (key on one line, literal on the next): $f:~$ln" >&2; done
+    fail=1
+  fi
 done < <(git diff --cached --name-only --diff-filter=ACMR -z)
 if [ "$fail" -ne 0 ]; then
   echo "❌ pre-commit: staged changes contain secret-shaped content. Commit refused." >&2
