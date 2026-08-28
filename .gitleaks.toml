@@ -35,30 +35,64 @@ keywords = ["sshpass"]
 
 [[rules]]
 id = "veton-pass-assignment"
-description = "PASS= / PASSWORD= / *_PASS= assignment in shell, Makefile, env or ini files"
-regex = '''(?i)(^|[^a-z0-9_])(pass|[a-z0-9]*_pass|password|passwd|passphrase)(word|wd|phrase)?\s*(=|\?=|:=)\s*["']?([^\s"'$<{`][^\s"']{3,})'''
-secretGroup = 5
+description = "PASS=value / *_PASS=value in shell, Makefile, .env (unquoted; same line; >=8 chars)"
+# Unquoted values are only credible in shell/env style (`KEY=value`, no blanks around `=`) or with the
+# Makefile-only operators `?=` / `:=`. `password = process.env.X` (blanks around `=`) is code, not a value.
+# `[ \t]*` on purpose: `\s*` would cross a newline and pair a key with the next line's text.
+regex = '''(?i)(^|[^a-z0-9_])(pass|[a-z0-9]*_pass|password|passwd|passphrase)(word|wd|phrase)?(=|[ \t]*(\?=|:=)[ \t]*)([^\s"'$<{`(\[][^\s"']{7,})'''
+secretGroup = 6
 keywords = ["pass", "password", "passwd", "passphrase"]
 [[rules.allowlists]]
 description = "obvious placeholders — checked against the VALUE only, never the surrounding prose"
 regexTarget = "secret"
-regexes = ['''(?i)^(changeme|change_me|example|placeholder|redacted|xxx+|your[-_]|<[a-z_ -]+>|none|null|true|false|\*+|\.\.\.)$''']
+regexes = ['''(?i)^(changeme|change_me|example|placeholder|redacted|xxx+|your[-_].*|<[a-z_ -]+>|none|null|true|false|\*+|\.\.\.)$''']
 
 [[rules]]
 id = "veton-yaml-password"
-description = "password: value in YAML / docker-compose / ini"
-regex = '''(?im)^\s*-?\s*["']?[a-z0-9_.-]*pass(word|wd|phrase)?["']?\s*:\s*["']?([^\s"'$<{#`][^\s"'#]{3,})'''
+description = "password: value in YAML / docker-compose / ini (unquoted allowed; same line; >=8 chars)"
+# Restricted BY PATH to config formats: in .ts/.go/.py a bare `password: string` or `password: mqttPassword,` (scan-ok: non-value shape)
+# is a type or a variable, never a value — those files are covered by veton-password-literal (quoted only).
+path = '''(?i)\.(ya?ml|ini|cfg|conf|properties)$'''
+regex = '''(?im)^[ \t]*-?[ \t]*["']?[a-z0-9_.-]*pass(word|wd|phrase)?["']?[ \t]*[:=][ \t]*["']?([^\s"'$<{#`][^\s"'#]{7,})'''
 secretGroup = 2
-keywords = ["password", "passwd", "passphrase", "pass:"]
+keywords = ["password", "passwd", "passphrase", "pass:", "pass="]
 [[rules.allowlists]]
 description = "obvious placeholders — VALUE only"
 regexTarget = "secret"
-regexes = ['''(?i)^(changeme|change_me|example|placeholder|redacted|xxx+|your[-_]|none|null|true|false|\*+|\.\.\.)$''']
+regexes = ['''(?i)^(changeme|change_me|example|placeholder|redacted|xxx+|your[-_].*|none|null|true|false|\*+|\.\.\.)$''']
+
+[[rules]]
+id = "veton-password-literal"
+description = "password-named key assigned a QUOTED string literal (>=8 chars) on the same line, any language"
+# The one shape that is a value in code: `password: "hunter2xyz"`, `pw = 'x'`, `PASSWORD => "y"`, `password="z"`.
+regex = '''(?i)\b[a-z0-9_.-]*pass(word|wd|phrase)?["']?[ \t]*(=>|:=|\?=|=|:)[ \t]*["']([^\s"'$<{`][^"'\n]{7,})["']'''
+secretGroup = 3
+keywords = ["pass", "password", "passwd", "passphrase"]
+[[rules.allowlists]]
+description = "obvious placeholders — VALUE only"
+regexTarget = "secret"
+regexes = ['''(?i)^(changeme|change_me|example|placeholder|redacted|xxx+|your[-_].*|<[a-z_ -]+>|none|null|true|false|\*+|\.\.\.)$''']
+
+[[rules]]
+id = "veton-next-line-literal"
+description = "defaultValue: / default: / password-named key with the string literal on the NEXT line (dart-format wrap)"
+# `String.fromEnvironment('K', defaultValue:\n 'value')` after `dart format` wraps the line; so does
+# `static const String xPassword =\n 'value'`. Per-line scanners miss it. `defaultValue:` also matches on the
+# same line (a Flutter-only key; 0 non-credential uses in the app repo); `default:` and `*password` need
+# the newline (JS `default: 'production'` and same-line passwords belong to other rules).
+regex = '''(?i)(\bdefaultValue[ \t]*:[ \t]*(\r?\n[ \t]*)?|\b(default|[a-z0-9_.-]*pass(word|wd|phrase)?)[ \t]*[:=][ \t]*\r?\n[ \t]*)["']([^\s"'$<{`][^"'\n]{7,})["']'''
+secretGroup = 5
+keywords = ["defaultvalue", "default", "pass", "password", "passwd", "passphrase"]
+[[rules.allowlists]]
+description = "obvious placeholders — VALUE only"
+regexTarget = "secret"
+regexes = ['''(?i)^(changeme|change_me|example|placeholder|redacted|xxx+|your[-_].*|<[a-z_ -]+>|none|null|true|false|\*+|\.\.\.|https?://[^@]*)$''']
 
 [[rules]]
 id = "veton-url-inline-credentials"
 description = "postgres://user:pass@ and other connection URLs with an inline password"
-regex = '''(?i)\b(postgres(ql)?|mysql|mariadb|mongodb(\+srv)?|redis|rediss|amqps?|mqtts?|ftp|sftp|https?)://[^\s:/@"']+:([^\s@"'$<{`][^\s@"']{2,})@'''
+# Password of >=1 char on purpose (`postgres://u:p@h` is a real leak shape); placeholders are excluded by value.
+regex = '''(?i)\b(postgres(ql)?|mysql|mariadb|mongodb(\+srv)?|redis|rediss|amqps?|mqtts?|ftp|sftp|https?)://[^\s:/@"']+:([^\s@"'$<{`][^\s@"']*)@'''
 secretGroup = 4
 keywords = ["://"]
 [[rules.allowlists]]
