@@ -29,9 +29,12 @@ keywords = ["hmac", "secret", "token", "apikey", "api_key", "passwd", "password"
 [[rules]]
 id = "veton-sshpass"
 description = "sshpass -p <password> on the command line"
-regex = '''sshpass\s+-p\s*["']?([^\s"'$`][^\s"']*)'''
+regex = '''sshpass\s+-p\s*["']?([^\s"'$`<*][^\s"']*)'''
 secretGroup = 1
 keywords = ["sshpass"]
+# Placeholders are not secrets: <PASSWORD>, ***, $VAR, ${VAR}, `cmd`, 1-2 char values.
+[rules.allowlist]
+regexes = ['''^(<[^>]*>|\*+|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|.{1,2})$''']
 
 [[rules]]
 id = "veton-pass-assignment"

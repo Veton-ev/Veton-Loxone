@@ -2,6 +2,9 @@
 #
 # For repos with nothing to build or test (knowledge bases, doc repos, config-only). Still runs
 # the secret scan (G5) and provides a check named `ci` for branch protection / `needs: ci`.
+#
+# Veton-Loxone: the Loxone template MB_Veton.xml is customer-facing (imported into Loxone Config),
+# so a malformed XML must fail the job — `xmllint --noout` is the only extra gate.
 name: CI
 
 on:
@@ -12,6 +15,9 @@ on:
 permissions:
   contents: read
 
+# Group includes the CALLER's workflow name: when deploy.yml calls this file via workflow_call,
+# github.workflow is "Deploy", so that run never cancels (or is cancelled by) the push-triggered
+# "CI" run of the same ref. Plain ci-${{ github.ref }} would make the two fight.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -20,23 +26,55 @@ jobs:
   ci:
     name: ci
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    env:
+      GITLEAKS_VERSION: 8.28.0
+      GITLEAKS_SHA256: a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0   # gitleaks scans the whole history (--log-opts=--all)
 
       # Secret scan FIRST: a leaked credential must fail the job even if the tests are red.
       # Pinned binary + verified checksum, run directly — no gitleaks-action (its org-repo license
       # requirement would leave CI red until someone registers). Whole history is scanned.
+      # The verified tarball is cached (key = version + sha256) so the GitHub release download is not
+      # a per-run network dependency; on a miss it is fetched with 3 retries. The sha256 is checked on
+      # EVERY run, cache hit or miss — a cache entry is never trusted on its own.
+      - name: Cache gitleaks (verified tarball)
+        id: gitleaks-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/gitleaks/gitleaks_${{ env.GITLEAKS_VERSION }}_linux_x64.tar.gz
+          key: gitleaks-${{ env.GITLEAKS_VERSION }}-${{ env.GITLEAKS_SHA256 }}
+
       - name: Secret scan (gitleaks v8.28.0, pinned + sha256-verified)
         env:
-          GITLEAKS_VERSION: 8.28.0
-          GITLEAKS_SHA256: a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb
+          CACHE_HIT: ${{ steps.gitleaks-cache.outputs.cache-hit }}
         run: |
           set -euo pipefail
-          curl -fsSL -o /tmp/gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          echo "${GITLEAKS_SHA256}  /tmp/gitleaks.tgz" | sha256sum -c -
-          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
+          TGZ="$HOME/.cache/gitleaks/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          mkdir -p "$(dirname "$TGZ")"
+          if [ "$CACHE_HIT" = "true" ] && [ -s "$TGZ" ]; then
+            echo "gitleaks ${GITLEAKS_VERSION}: tarball from cache"
+          else
+            URL="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+            rm -f "$TGZ"
+            for i in 1 2 3; do
+              curl -fsSL --max-time 120 -o "$TGZ" "$URL" && break
+              echo "::warning::gitleaks download attempt $i/3 failed"; rm -f "$TGZ"; sleep 5
+            done
+            [ -s "$TGZ" ] || { echo "::error::gitleaks download failed 3 times: $URL"; exit 1; }
+          fi
+          echo "${GITLEAKS_SHA256}  $TGZ" | sha256sum -c -
+          tar -xzf "$TGZ" -C /tmp gitleaks
           /tmp/gitleaks version
           /tmp/gitleaks git --config .gitleaks.toml --redact --exit-code 1 --no-banner --log-opts="--all" .
+
+      - name: xmllint --noout MB_Veton.xml (well-formedness of the customer-facing Loxone template)
+        run: |
+          set -euo pipefail
+          command -v xmllint >/dev/null 2>&1 || sudo apt-get install -y -q libxml2-utils >/dev/null
+          xmllint --version 2>&1 | head -1
+          xmllint --noout MB_Veton.xml
+          echo "MB_Veton.xml: well-formed"
