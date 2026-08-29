@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# Guardrail-kit pre-commit hook: secret scan of STAGED content. Exit 1 = commit refused.
+# Installed by kit/install-hooks.sh (git config core.hooksPath .githooks).
+#
+# Layer 1: gitleaks (if installed) with the repo's .gitleaks.toml.
+# Layer 2: fallback grep with the same shapes when gitleaks is absent — weaker (no entropy, no
+#          default rules) but never silent. Install gitleaks to get the real scanner.
+# Bypass for a genuine false positive: `git commit --no-verify` — and then say so in the PR,
+# because CI runs the same scanner and will fail anyway.
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+CFG=""
+[ -f .gitleaks.toml ] && CFG=".gitleaks.toml"
+
+if command -v gitleaks >/dev/null 2>&1; then
+  set +e
+  if gitleaks git --help 2>/dev/null | grep -q -- '--staged'; then
+    # gitleaks >= 8.19
+    gitleaks git --pre-commit --staged --redact --no-banner ${CFG:+-c "$CFG"} .
+  else
+    # gitleaks < 8.19 (`protect` is the old name for the same scan)
+    gitleaks protect --staged --redact --no-banner ${CFG:+-c "$CFG"}
+  fi
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    echo "❌ pre-commit: gitleaks found secret-shaped content in the staged changes (rc=$rc). Commit refused." >&2
+    echo "   Remove the value (use an env var / secret store), then re-stage. CI runs the same scan." >&2
+    exit 1
+  fi
+  exit 0
+fi
+
+# ---------------------------------------------------------------- fallback: grep (no gitleaks)
+echo "⚠️  pre-commit: gitleaks not installed — using the weaker grep fallback. Install gitleaks: https://github.com/gitleaks/gitleaks#installing" >&2
+# Same shapes as kit/gitleaks.toml, in POSIX ERE. Case-insensitive where the TOML rule is.
+PATTERNS=(
+  'sshpass[[:space:]]+-p[[:space:]]*["'"'"']?[^[:space:]"'"'"'$`][^[:space:]"'"'"']*'
+  # PASS=value (shell/env: no blanks around `=`) or Makefile `?=`/`:=`; unquoted, same line, >=8 chars
+  '(^|[^A-Za-z0-9_])(pass|[A-Za-z0-9]*_pass|password|passwd|passphrase)(word|wd|phrase)?(=|[[:blank:]]*(\?=|:=)[[:blank:]]*)[^[:space:]"'"'"'$<{`(\[][^[:space:]"'"'"']{7,}'
+  # password-named key with a QUOTED literal (>=8 chars) on the same line, any language
+  '[A-Za-z0-9_.-]*pass(word|wd|phrase)?["'"'"']?[[:blank:]]*(=>|:=|\?=|=|:)[[:blank:]]*["'"'"'][^[:space:]"'"'"'$<{`][^"'"'"']{7,}["'"'"']'
+  # URL with inline credentials — password of >=1 char (placeholders filtered on the value below)
+  '(postgres(ql)?|mysql|mariadb|mongodb(\+srv)?|rediss?|amqps?|mqtts?|s?ftp|https?)://[^[:space:]:/@"'"'"']+:[^[:space:]@"'"'"'$<{`][^[:space:]@"'"'"']*@'
+  '(hmac|secret|token|apikey|api_key|passwd|password|pass|pw)[A-Za-z0-9_.-]*["'"'"']?[[:space:]]*(=|:|=>|\?=|:=)[[:space:]]*["'"'"']?[0-9a-fA-F]{32,128}([^0-9a-fA-F]|$)'
+  'eyJ[A-Za-z0-9+/=_-]{120,}'
+  '(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{40,}'
+  'sk-ant-[A-Za-z0-9_-]{20,}'
+  '-----BEGIN [A-Z ]*PRIVATE KEY'
+  'AKIA[0-9A-Z]{16}'
+  'xox[abprs]-[A-Za-z0-9-]{10,}'
+  'AIza[0-9A-Za-z_-]{35}'
+)
+# Only in config formats (yaml/ini/conf): `password: value` UNQUOTED. In code that shape is a type or a
+# variable (`password: string`, `password: mqttPassword,`) — mirrors the TOML rule's `path`. (scan-ok: non-value shape)
+CFG_FILE_RE='\.([Yy][Aa]?[Mm][Ll]|[Ii][Nn][Ii]|[Cc][Ff][Gg]|[Cc][Oo][Nn][Ff]|[Pp][Rr][Oo][Pp][Ee][Rr][Tt][Ii][Ee][Ss])$'
+CFG_PATTERNS=(
+  '^[[:blank:]]*-?[[:blank:]]*["'"'"']?[A-Za-z0-9_.-]*pass(word|wd|phrase)?["'"'"']?[[:blank:]]*[:=][[:blank:]]*["'"'"']?[^[:space:]"'"'"'$<{#`][^[:space:]"'"'"'#]{7,}'
+)
+# Key at end of line, quoted literal on the NEXT line (dart-format wraps `defaultValue:\n 'value'` and
+# `xPassword =\n 'value'`). Lines are joined with a marker first, so the check stays line-based.
+# `defaultValue:` (Flutter-only key) also matches on the same line; `default:`/`*password` need the join.
+NL_JOIN_SED='/([Dd]efault[Vv]alue|[Dd]efault|[Pp]ass([Ww]ord|[Ww]d|[Pp]hrase)?)[[:blank:]]*[:=][[:blank:]]*$/{
+N
+s/\n[[:blank:]]*/__NL__/
+}'
+NL_PATTERN='([Dd]efault[Vv]alue[[:blank:]]*:[[:blank:]]*(__NL__)?|([Dd]efault|[A-Za-z0-9_.-]*[Pp]ass([Ww]ord|[Ww]d|[Pp]hrase)?)[[:blank:]]*[:=][[:blank:]]*__NL__)["'"'"'][^[:space:]"'"'"'$<{`][^"'"'"']{7,}["'"'"']'
+# Path allowlist — mirrors the TOML (paths only).
+SKIP_RE='(^|/)(\.gitleaks\.toml|kit/gitleaks\.toml|go\.sum|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|pubspec\.lock|poetry\.lock|Cargo\.lock)$|(^|/)(testdata|__fixtures__|fixtures|test/fixtures|tests/fixtures)/'
+# Placeholder check is applied to the MATCHED VALUE only (the tail of the match), never to the line:
+# a line-level phrase filter would silence a real secret that happens to share a line with "example".
+PLACEHOLDER_VALUE_RE='(=|:|-p|__NL__)[[:space:]]*["'"'"']?(changeme|change_me|placeholder|redacted|example|xxx+|your[-_][a-z_-]*|password|passwd|pass|secret|none|null|true|false|https?://[^@]*)["'"'"']?@?[[:space:]]*$'
+fail=0
+while IFS= read -r -d '' f; do
+  printf '%s' "$f" | grep -qE "$SKIP_RE" && continue
+  content="$(git show ":$f" 2>/dev/null || true)"
+  [ -n "$content" ] || continue
+  printf '%s' "$content" | grep -qI . || continue   # binary
+  pats=("${PATTERNS[@]}")
+  printf '%s' "$f" | grep -qE "$CFG_FILE_RE" && pats+=("${CFG_PATTERNS[@]}")
+  for p in "${pats[@]}"; do
+    hits="$(printf '%s\n' "$content" | grep -noEi -- "$p" | grep -vEi -- "$PLACEHOLDER_VALUE_RE" || true)"
+    if [ -n "$hits" ]; then
+      # print file:line only — never the matched value
+      printf '%s\n' "$hits" | cut -d: -f1 | while read -r ln; do echo "❌ secret-shaped content: $f:$ln" >&2; done
+      fail=1
+    fi
+  done
+  # next-line literal: join "key:<EOL>" with the following line, then grep (line numbers are approximate)
+  hits="$(printf '%s\n' "$content" | sed -E "$NL_JOIN_SED" | grep -noE -- "$NL_PATTERN" | grep -vEi -- "$PLACEHOLDER_VALUE_RE" || true)"
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits" | cut -d: -f1 | while read -r ln; do echo "❌ secret-shaped content (key on one line, literal on the next): $f:~$ln" >&2; done
+    fail=1
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+if [ "$fail" -ne 0 ]; then
+  echo "❌ pre-commit: staged changes contain secret-shaped content. Commit refused." >&2
+  echo "   Remove the value (env var / secret store), re-stage. CI runs gitleaks with the same shapes." >&2
+  exit 1
+fi
+exit 0
