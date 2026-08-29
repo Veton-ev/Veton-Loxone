@@ -36,9 +36,13 @@ Owners: TBD (Brend / Andrii). Escalation: Jens. Handbook page: `veton-handbook/1
 python3 -c "import xml.etree.ElementTree as ET; ET.parse('MB_Veton.xml')"
 # build: none
 ```
-CI: **none** — no `.github/workflows/`. Target state: a `ci.yml` (job id `ci`) running the
-`MB_Veton.xml` parse above, a grep that `APPKEY=""` and the Modbus server `Address=""` are
-still blank in `Veton.Loxone`, and gitleaks; see `veton-handbook/HANDOVER-PLAN.md` Phase 4.
+CI (since 2026-08-26): `.github/workflows/ci.yml`, job id `ci`, every push/PR — **secret scan
+only** (`gitleaks git --config .gitleaks.toml --exit-code 1 --log-opts=--all .`, whole history;
+public repo). The XML parse and the blank-`APPKEY`/`Address` grep are NOT in CI yet — run them
+yourself before pushing. Locally: `git config core.hooksPath .githooks` once per clone enables
+the same scan as a pre-commit hook; `.claude/settings.json` + `.claude/hooks/guard.sh` fence
+agents off `git push` to main and force pushes. Branch protection (require `ci`) is a GitHub
+setting still to be clicked.
 
 ## Deploy
 **Not deployed.** Not in the 2026-08-26 deploy survey
@@ -47,6 +51,7 @@ still blank in `Veton.Loxone`, and gitleaks; see `veton-handbook/HANDOVER-PLAN.m
 (curated by Loxone, no automation). Rollback = revert the commit.
 Blast radius of a bad change: Loxone customers import wrong register numbers / an unsafe write
 into their Miniserver — nothing on the Veton fleet or cloud changes.
+Path to `main`: PR with the `ci` check green (secret scan); agents cannot push to `main` directly.
 
 ## Talks to (seams)
 - **CHARX Modbus register map** — hard-coded twice here (`Veton.Loxone` device `Address="1xxx"`

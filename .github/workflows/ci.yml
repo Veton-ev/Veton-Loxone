@@ -1,0 +1,42 @@
+# CI — no toolchain (installed as .github/workflows/ci.yml by kit/apply.sh --lang none)
+#
+# For repos with nothing to build or test (knowledge bases, doc repos, config-only). Still runs
+# the secret scan (G5) and provides a check named `ci` for branch protection / `needs: ci`.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # gitleaks scans the whole history (--log-opts=--all)
+
+      # Secret scan FIRST: a leaked credential must fail the job even if the tests are red.
+      # Pinned binary + verified checksum, run directly — no gitleaks-action (its org-repo license
+      # requirement would leave CI red until someone registers). Whole history is scanned.
+      - name: Secret scan (gitleaks v8.28.0, pinned + sha256-verified)
+        env:
+          GITLEAKS_VERSION: 8.28.0
+          GITLEAKS_SHA256: a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  /tmp/gitleaks.tgz" | sha256sum -c -
+          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
+          /tmp/gitleaks version
+          /tmp/gitleaks git --config .gitleaks.toml --redact --exit-code 1 --no-banner --log-opts="--all" .
