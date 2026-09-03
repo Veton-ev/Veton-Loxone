@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+
+# Miniserver access tooling - not part of the shipped integration
+tools/loxone-client.py

@@ -128,6 +128,81 @@ regex = '''-----BEGIN [A-Z ]*PRIVATE KEY( BLOCK)?-----'''
 keywords = ["PRIVATE KEY"]
 
 # ---------------------------------------------------------------------------------------------
+# Loxone project files (*.Loxone, *.LoxCC, MB_*.xml). Every rule above keys on a word like
+# `password`/`token` or a vendor prefix — a Loxone file has neither. The tell is the XML
+# ATTRIBUTE NAME; the value is undecorated hex/base64/plain text. Each rule therefore fires on
+# the attribute name and requires a NON-EMPTY value: the shipped project ships these cleared
+# (`H=""`, `Serial=""`, `APPKEY=""`, `Address=""`), so "empty" is the safe state and any value
+# is a re-export taken from a real Miniserver.
+# ---------------------------------------------------------------------------------------------
+
+[[rules]]
+id = "loxone-user-password-verifier"
+description = "Loxone <HP H=...> user password verifier (hex)"
+regex = '''<HP[^>]*\sH="([0-9a-fA-F]{16,})"'''
+secretGroup = 1
+keywords = ["<hp"]
+
+[[rules]]
+id = "loxone-user-password-salt"
+description = "Loxone <HP S=...> password salt (hex/base64). The \\bS=\" anchor does not match Sc=\""
+regex = '''<HP[^>]*\sS="([A-Za-z0-9+/=_-]{8,})"'''
+secretGroup = 1
+keywords = ["<hp"]
+
+[[rules]]
+id = "loxone-miniserver-serial"
+description = "Loxone Miniserver serial (its MAC) / installation serial - identifies a customer site"
+regex = '''\bSerial="([0-9A-Fa-f]{6,})"'''
+secretGroup = 1
+keywords = ["serial="]
+
+[[rules]]
+id = "loxone-appkey"
+description = "Loxone document APPKEY / APPID carrying a value (the shipped file must have it empty)"
+regex = '''\bAPP(?:KEY|ID)=["']?([^\s"'<>${}][^\s"'<>]*)'''
+secretGroup = 1
+keywords = ["appkey", "appid"]
+
+[[rules]]
+id = "loxone-server-address"
+description = "Filled-in Address= on a Modbus/Mqtt/Virtual server element (a customer charger or broker IP)"
+# Scoped to the server element through Type=, so the shipped Weather Server URL
+# (Type="WeatherServer") and the Logger file path (Type="Logger") do not fire.
+regex = '''Type="(?:Modbus|Mqtt|MQTT|Virtual)[A-Za-z0-9]*Server"[^>]*\sAddress="([^"\s]+)"'''
+secretGroup = 1
+keywords = ["modbus", "mqtt", "virtual"]
+
+[[rules]]
+id = "loxone-site-postal-address"
+description = "Loxone project location: Street / Town / PostCode with a value (customer site)"
+regex = '''\b(?:Street|Town|PostCode)="([^"]+)"'''
+secretGroup = 1
+keywords = ["street=", "town=", "postcode="]
+
+[[rules]]
+id = "loxone-site-coordinates"
+description = "Loxone project Latitude / Longitude set to a non-zero value (pinpoints a customer site)"
+# The shipped project carries "0"; the regex needs at least one non-zero digit, so 0 / 0.0 pass.
+regex = '''\b(?:Latitude|Longitude)="(-?[0-9.]*[1-9][0-9.]*)"'''
+secretGroup = 1
+keywords = ["latitude", "longitude"]
+
+[[rules]]
+id = "loxone-user-pii"
+description = "Loxone user record PII: Ema (e-mail), Phn (phone), FiN / LaN (first / last name)"
+regex = '''\b(?:Ema|Phn|FiN|LaN)="([^"]+)"'''
+secretGroup = 1
+keywords = ["ema=", "phn=", "fin=", "lan="]
+
+[[rules]]
+id = "loxone-access-tokens"
+description = "Loxone access-credential arrays: iButton / access code / NFC tag ids"
+regex = '''\b(?:iBtnArr|CodeArr|NFCArr|NFCNArr|EAIdArr)="([^"]+)"'''
+secretGroup = 1
+keywords = ["ibtnarr", "codearr", "nfcarr", "nfcnarr", "eaidarr"]
+
+# ---------------------------------------------------------------------------------------------
 # Global allowlist — PATHS ONLY. No content regexes, no stopwords.
 # ---------------------------------------------------------------------------------------------
 [[allowlists]]
