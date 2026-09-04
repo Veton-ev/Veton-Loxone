@@ -28,10 +28,18 @@ F7  validity ranges: every ModbusASensor must be able to show every value its
     register can physically carry (X293/X294 is a 32-bit bitfield, not an ordinal)
 F8  X301 setpoint truncates (INT) instead of rounding up past the asked budget
 F9  the 'mono' single-phase formula guards its divide-by-zero and gets F5+F8
+F10 remove the 12hTF document attribute so the file is well-formed XML
+F11 pause: X301 = 0 when the Wallbox block's target power (outLimit) is 0, so a
+    paused / load-shed / not-allowed car actually stops instead of idling at the
+    6 A floor (~4 kW); any non-zero target keeps the 6..80 A clamp + truncation
+F12 X301 RepeatRate 3600 -> 60 s: the setpoint (and a 0 A pause) is re-asserted
+    at the watchdog cadence, so a CHARX-side revert of an external X301 write
+    is undone within a minute instead of an hour
 """
 
 from __future__ import annotations
 
+import html
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -54,8 +62,16 @@ POWER_DST_HIGH = "1"
 ENERGY_MIN = "0"
 ENERGY_MAX = "100000000"
 
-# X301 range per Veton-EMS-Integration/docs/modbus.md ("never write 0").
+# X301 range per Veton-EMS-Integration/docs/modbus.md ("never write 0") -- never
+# write 0 EXCEPT as the deliberate pause when the Wallbox block's target power
+# is 0 (F11).  On a CHARX, X301 = 0 withdraws the charging release (the car
+# stops); writing >= 6 again resumes.  That is the pause primitive Veton's own
+# agent uses, and it is the only way Loxone's "pause" reaches the car: the
+# Wallbox block signals pause / load-shed / not-allowed by driving outLimit to
+# 0 kW, and a plain 6 A floor would keep the car charging at ~4 kW.
 X301_MIN, X301_MAX = 6, 80
+# F12 -- re-send cadence of the X301 setpoint (was 3600 s).  Same as X307's.
+X301_REPEAT = "60"
 
 # The '3 fase' formula goes through three states: as authored, F5-clamped, and
 # F8-truncated.  INT() is documented on Loxone's own Formula page ("Integer
@@ -65,6 +81,12 @@ X301_MIN, X301_MAX = 6, 80
 FORMULA_3F_RAW = "(I1*1000)/(400*1,732)"
 FORMULA_3F_CLAMPED = "MIN(MAX((I1*1000)/(400*1,732);%d);%d)" % (X301_MIN, X301_MAX)
 FORMULA_3F_TRUNC = "MIN(MAX(INT((I1*1000)/(400*1,732));%d);%d)" % (X301_MIN, X301_MAX)
+# F11 -- the final form: 0 kW target -> 0 A (pause), anything else -> the F5/F8
+# clamp.  The Wallbox block's minimum-power parameter is 4.16 kW, so every
+# non-zero outLimit already lands at >= 6 A; the IF only separates "paused"
+# from "charging".  '>' is XML-escaped exactly like the existing
+# IF(I1&gt;16944;...) formulas in the file.
+FORMULA_3F_PAUSE = "IF(I1&gt;0;%s;0)" % FORMULA_3F_TRUNC
 
 # The 'mono' single-phase formula divides by the *measured* L1 voltage, which
 # reads 0 whenever the charger is unreachable or the contactor is open.  100 V is
@@ -87,6 +109,8 @@ FORMULA_MONO_PREV = "IF(I2&gt;%d;MIN(MAX(INT((I1*1000)/I2);%d);%d);%d)" % (
 FORMULA_MONO_NEW = "IF(I2&gt;%d;MIN(MAX(INT((I1*1000)/MAX(I2;%d));%d);%d);%d)" % (
     MONO_V_FLOOR, MONO_V_FLOOR, X301_MIN, X301_MAX, X301_MIN
 )
+# F11 -- pause wraps the guarded form: 0 kW -> 0 A regardless of the voltage.
+FORMULA_MONO_PAUSE = "IF(I1&gt;0;%s;0)" % FORMULA_MONO_NEW
 
 # F10 -- 12hTF="true" is a 12-hour-clock display setting, and its name starts
 # with a digit, which XML forbids.  It makes the whole project unreadable to every
@@ -117,10 +141,13 @@ REGISTER_SPAN = {
     299: (0, 0xFFFF, "vehicle status: two ASCII characters packed into one 16-bit register"),
 }
 
-# X306 / X307 watchdog.  RepeatRate re-sends the value every N seconds while it
-# is > 0; 300 s timer with a 60 s re-send leaves five missed sends of margin,
-# and 6 A is the IEC 61851 minimum so a dead Miniserver slows the car instead of
-# stopping it.
+# X306 / X307 watchdog.  RepeatRate re-sends the output value every N seconds
+# unconditionally -- Loxone Config 17's own help text for the Modbus output
+# repeat property reads "Interval in seconds, at which the output value is sent
+# again"; it does NOT condition on the value being > 0 (that condition belongs
+# to virtual outputs).  So a 0 A pause on X301 is re-sent too (F12).  300 s
+# timer with a 60 s re-send leaves five missed sends of margin, and 6 A is the
+# IEC 61851 minimum so a dead Miniserver slows the car instead of stopping it.
 WATCHDOG = [
     # (register, title, constant, RepeatRate [s], display unit)
     (306, "Watchdog fallback current", "6", "3600", "A"),
@@ -418,7 +445,7 @@ def fix_setpoint(lines: list[str], cp: int, prefix: str, log: list[str]) -> None
 
     tri = find_line(lines, 'Type="Formula"', 'Title="%s3 fase"' % prefix)
     cur = attr(lines[tri], "Formula")
-    if cur in (FORMULA_3F_CLAMPED, FORMULA_3F_TRUNC):
+    if cur in (FORMULA_3F_CLAMPED, FORMULA_3F_TRUNC, FORMULA_3F_PAUSE):
         log.append("F5  X%d301 clamp: '%s3 fase' formula already clamped" % (cp, prefix))
     else:
         assert cur == FORMULA_3F_RAW, "unexpected '%s3 fase' formula: %r" % (prefix, cur)
@@ -639,7 +666,7 @@ def kw_of(amps: float) -> float:
 def fix_setpoint_truncate(lines: list[str], cp: int, prefix: str, log: list[str]) -> None:
     tri = find_line(lines, 'Type="Formula"', 'Title="%s3 fase"' % prefix)
     cur = attr(lines[tri], "Formula")
-    if cur == FORMULA_3F_TRUNC:
+    if cur in (FORMULA_3F_TRUNC, FORMULA_3F_PAUSE):
         log.append("F8  X%d301 truncation: '%s3 fase' already truncates (INT)" % (cp, prefix))
     else:
         assert cur == FORMULA_3F_CLAMPED, "unexpected '%s3 fase' formula: %r" % (prefix, cur)
@@ -666,7 +693,7 @@ def fix_setpoint_truncate(lines: list[str], cp: int, prefix: str, log: list[str]
 def fix_mono_guard(lines: list[str], cp: int, prefix: str, log: list[str]) -> None:
     mono = find_line(lines, 'Type="Formula"', 'Title="%smono"' % prefix)
     cur = attr(lines[mono], "Formula")
-    if cur == FORMULA_MONO_NEW:
+    if cur in (FORMULA_MONO_NEW, FORMULA_MONO_PAUSE):
         log.append("F9  '%smono': already guarded/clamped/truncated" % prefix)
     else:
         assert cur in (FORMULA_MONO_RAW, FORMULA_MONO_PREV), \
@@ -690,6 +717,173 @@ def fix_mono_guard(lines: list[str], cp: int, prefix: str, log: list[str]) -> No
         assert X301_MIN <= out <= X301_MAX, (
             "'%smono' %.0f V / %.2f kW -> %d A outside 6..80" % (prefix, volts, kw, out)
         )
+
+
+# --------------------------------------------------------------------------
+# F11 -- pause: target power 0 -> X301 = 0 (release withdrawn), else the clamp
+# --------------------------------------------------------------------------
+
+
+def model_3f(kw: float) -> int:
+    """Python model of FORMULA_3F_PAUSE."""
+    if not kw > 0:
+        return 0
+    return min(max(int((kw * 1000) / (400 * 1.732)), X301_MIN), X301_MAX)
+
+
+def model_mono(kw: float, volts: float) -> int:
+    """Python model of FORMULA_MONO_PAUSE."""
+    if not kw > 0:
+        return 0
+    if volts > MONO_V_FLOOR:
+        return min(max(int((kw * 1000) / max(volts, MONO_V_FLOOR)), X301_MIN), X301_MAX)
+    return X301_MIN
+
+
+# Loxone formula text -> value, so the self-check runs the formula AS STORED,
+# not only the Python model of it.  Otherwise a typo in FORMULA_3F_PAUSE /
+# FORMULA_MONO_PAUSE would pass the model check and ship.  Dependency-free:
+# the stored text is normalised (XML-unescape, `1,732` -> `1.732`, `;` -> `,`,
+# IF/MIN/MAX/INT -> Python callables) and eval()ed in an empty-builtins
+# namespace, after a whitelist proves nothing but those tokens is in it.
+_FORMULA_IDENTS = {"IF", "MIN", "MAX", "INT", "ABS"}
+_FORMULA_ALLOWED_RE = re.compile(r"^[\sA-Za-z0-9_.,;()+\-*/<>=!]*$")
+_FORMULA_NUM_RE = re.compile(r"(?<![A-Za-z_0-9])(\d+),(\d+)")
+
+
+def eval_stored_formula(text: str, inputs: dict[str, float]) -> float:
+    """Evaluate a Loxone `Formula=` attribute value with the given I1..In.
+
+    Both IF branches are evaluated EAGERLY (Python call semantics), which is
+    the stricter of the two undocumented Loxone semantics -- a formula that
+    survives it survives the lazy one too."""
+    src = html.unescape(text)
+    if not _FORMULA_ALLOWED_RE.match(src):
+        raise AssertionError("formula has a character outside the whitelist: %r" % text)
+    src = _FORMULA_NUM_RE.sub(r"\1.\2", src)     # comma decimal -> dot
+    src = src.replace(";", ",")                   # argument separator
+    src = src.replace("<>", "!=")
+    idents = set(re.findall(r"[A-Za-z_][A-Za-z_0-9]*", src))
+    unknown = {i for i in idents if i.upper() not in _FORMULA_IDENTS and not re.fullmatch(r"I\d+", i.upper())}
+    if unknown:
+        raise AssertionError("formula uses identifier(s) outside the whitelist %s: %r" % (sorted(unknown), text))
+    ns = {
+        "__builtins__": {},
+        "IF": lambda c, a, b: a if c else b,
+        "MIN": min, "MAX": max, "INT": int, "ABS": abs,
+    }
+    ns.update({k.upper(): float(v) for k, v in inputs.items()})
+    return float(eval(src, ns, {}))   # noqa: S307 -- whitelisted tokens only
+
+
+def selfcheck_stored_formulas(lines: list[str], cp: int, prefix: str) -> None:
+    """Run the formula TEXT now stored in the file over the same sweep as the
+    Python model and require identical outputs.  Fails loudly on any drift."""
+    i = find_line(lines, 'Type="Formula"', 'Title="%s3 fase"' % prefix)
+    text_3f = attr(lines[i], "Formula")
+    assert text_3f == FORMULA_3F_PAUSE, "stored '%s3 fase' text is not FORMULA_3F_PAUSE: %r" % (prefix, text_3f)
+    for kw in (0.0, -1.0, 0.5, 1.0, 4.16, 7.4, 11.0, 22.0, 60.0):
+        got = eval_stored_formula(text_3f, {"I1": kw})
+        want = model_3f(kw)
+        assert got == want, (
+            "X%d301 '%s3 fase' STORED TEXT %r at %.2f kW -> %r, Python model says %r"
+            % (cp, prefix, text_3f, kw, got, want)
+        )
+    i = find_line(lines, 'Type="Formula"', 'Title="%smono"' % prefix)
+    text_mono = attr(lines[i], "Formula")
+    assert text_mono == FORMULA_MONO_PAUSE, "stored '%smono' text is not FORMULA_MONO_PAUSE: %r" % (prefix, text_mono)
+    for volts in (0.0, 95.0, 100.0, 101.0, 230.0, 253.0):
+        for kw in (0.0, -1.0, 1.0, 3.7, 4.16, 7.4, 11.0, 22.0, 60.0):
+            got = eval_stored_formula(text_mono, {"I1": kw, "I2": volts})
+            want = model_mono(kw, volts)
+            assert got == want, (
+                "'%smono' STORED TEXT %r at %.0f V / %.2f kW -> %r, Python model says %r"
+                % (prefix, text_mono, volts, kw, got, want)
+            )
+
+
+def fix_pause(lines: list[str], cp: int, prefix: str, log: list[str]) -> None:
+    """Make Loxone's "pause" actually pause the car.
+
+    The Wallbox block drives outLimit (Tp) to 0 kW whenever charging is paused,
+    load-shed or not allowed.  The F5/F8 clamp turned that 0 into the 6 A floor,
+    so a "paused" car kept charging at ~4 kW.  Now 0 kW -> X301 = 0, which on a
+    CHARX withdraws the charging release; any non-zero target (>= the block's
+    4.16 kW minimum-power parameter) keeps the 6..80 A clamp + truncation.
+    """
+    for title, prev, new in (("3 fase", FORMULA_3F_TRUNC, FORMULA_3F_PAUSE),
+                             ("mono", FORMULA_MONO_NEW, FORMULA_MONO_PAUSE)):
+        i = find_line(lines, 'Type="Formula"', 'Title="%s%s"' % (prefix, title))
+        cur = attr(lines[i], "Formula")
+        if cur == new:
+            log.append("F11 X%d301 pause: '%s%s' already pauses on 0 kW" % (cp, prefix, title))
+            continue
+        assert cur == prev, "unexpected '%s%s' formula: %r" % (prefix, title, cur)
+        lines[i] = set_attr(lines[i], "Formula", new)
+        log.append("F11 X%d301 pause: '%s%s' %s -> %s" % (cp, prefix, title, cur, new))
+
+    # self-check the STORED TEXT against the Python model over the same sweep
+    # (a typo in FORMULA_*_PAUSE cannot pass on the model alone)
+    selfcheck_stored_formulas(lines, cp, prefix)
+    log.append("F11 X%d301 pause: stored '%s3 fase'/'%smono' text evaluates identically to the model"
+               % (cp, prefix, prefix))
+
+    # self-check the model: 0 kW is the ONLY way to get 0 A; every non-zero
+    # target stays in 6..80 and never asks for more power than budgeted, except
+    # at the 6 A floor.
+    for kw in (0.0, 1.0, 4.16, 7.4, 11.0, 22.0):
+        out = model_3f(kw)
+        if kw == 0.0:
+            assert out == 0, "X%d301 '3 fase' 0 kW -> %d A, expected 0 (pause)" % (cp, out)
+            continue
+        assert X301_MIN <= out <= X301_MAX, "X%d301 '3 fase' %.2f kW -> %d A outside 6..80" % (cp, kw, out)
+        assert out == X301_MIN or kw_of(out) <= kw + 1e-9, (
+            "X%d301 '3 fase' %.2f kW -> %d A = %.3f kW, more than asked" % (cp, kw, out, kw_of(out))
+        )
+    for volts in (0.0, 95.0, 230.0, 253.0):
+        assert model_mono(0.0, volts) == 0, (
+            "'%smono' %.0f V / 0 kW -> %d A, expected 0 (pause) regardless of voltage"
+            % (prefix, volts, model_mono(0.0, volts))
+        )
+    for volts, kw in ((0.0, 7.4), (95.0, 7.4), (230.0, 3.7), (230.0, 7.4), (253.0, 22.0),
+                      (230.0, 1.0), (230.0, 4.16), (230.0, 11.0)):
+        out = model_mono(kw, volts)
+        assert X301_MIN <= out <= X301_MAX, (
+            "'%smono' %.0f V / %.2f kW -> %d A outside 6..80" % (prefix, volts, kw, out)
+        )
+        if volts <= MONO_V_FLOOR:
+            assert out == X301_MIN, "'%smono' %.0f V / %.2f kW -> %d A, expected the 6 A guard" % (
+                prefix, volts, kw, out)
+        else:
+            assert out == X301_MIN or out * volts / 1000 <= kw + 1e-9, (
+                "'%smono' %.0f V / %.2f kW -> %d A asks for more than budgeted" % (prefix, volts, kw, out)
+            )
+
+
+# --------------------------------------------------------------------------
+# F12 -- X301 re-sent every 60 s
+# --------------------------------------------------------------------------
+
+X301_DESC = ("Set the max amount of amps that the car is able to use; 0 = pause "
+             "(charging release withdrawn); re-sent every %s s by RepeatRate" % X301_REPEAT)
+
+
+def fix_x301_repeat(lines: list[str], cp: int, log: list[str]) -> None:
+    """RepeatRate 3600 -> 60 on the X301 actuator, and say so in its Desc.
+
+    Defence against the CHARX firmware issue where an external X301 write can
+    revert to 0 shortly after landing, and it keeps both a 0 A pause and a
+    setpoint asserted at the same cadence as the X307 watchdog feed.
+    """
+    i = find_line(lines, 'Type="ModbusAActor"', 'ModbusAddress="%d301"' % cp)
+    old_rate, old_desc = attr(lines[i], "RepeatRate"), attr(lines[i], "Desc")
+    if old_rate == X301_REPEAT and old_desc == X301_DESC:
+        log.append("F12 X%d301 RepeatRate: already %s s" % (cp, X301_REPEAT))
+        return
+    ln = set_attr(lines[i], "RepeatRate", X301_REPEAT)
+    ln = set_attr(ln, "Desc", X301_DESC)
+    lines[i] = ln
+    log.append("F12 X%d301 RepeatRate: %s -> %s s (Desc updated: %r)" % (cp, old_rate, X301_REPEAT, X301_DESC))
 
 
 # --------------------------------------------------------------------------
@@ -766,11 +960,44 @@ def verify(path: str, data: bytes) -> list[str]:
                      ", %d unaudited %s" % (len(unaudited), unaudited) if unaudited else ""))
 
     tri = re.findall(r'Type="Formula"[^>]*Title="[^"]*3 fase"[^>]*Formula="([^"]*)"', text)
-    chk(bool(tri) and set(tri) == {FORMULA_3F_TRUNC},
-        "'3 fase' setpoint clamped + truncated on all %d charging point(s): %s" % (len(tri), set(tri)))
+    chk(bool(tri) and set(tri) == {FORMULA_3F_PAUSE},
+        "'3 fase' setpoint pauses on 0 kW + clamped + truncated on all %d charging point(s): %s"
+        % (len(tri), set(tri)))
     mono = re.findall(r'Type="Formula"[^>]*Title="[^"]*mono"[^>]*Formula="([^"]*)"', text)
-    chk(bool(mono) and set(mono) == {FORMULA_MONO_NEW},
-        "'mono' guarded + clamped + truncated on all %d charging point(s): %s" % (len(mono), set(mono)))
+    chk(bool(mono) and set(mono) == {FORMULA_MONO_PAUSE},
+        "'mono' pauses on 0 kW + guarded + clamped + truncated on all %d charging point(s): %s"
+        % (len(mono), set(mono)))
+    # Evaluate the stored formula TEXT (not the Python model) over the F11
+    # sweep, so `--check` also catches a typo'd FORMULA_*_PAUSE constant.
+    drift = []
+    for txt in set(tri):
+        for kw in (0.0, -1.0, 0.5, 1.0, 4.16, 7.4, 11.0, 22.0, 60.0):
+            try:
+                got = eval_stored_formula(txt, {"I1": kw})
+            except Exception as e:   # noqa: BLE001 -- report, do not hide
+                drift.append("'3 fase' %.2f kW: %s" % (kw, e))
+                continue
+            if got != model_3f(kw):
+                drift.append("'3 fase' %.2f kW -> %r, model %r" % (kw, got, model_3f(kw)))
+    for txt in set(mono):
+        for volts in (0.0, 95.0, 100.0, 101.0, 230.0, 253.0):
+            for kw in (0.0, -1.0, 1.0, 3.7, 4.16, 7.4, 11.0, 22.0, 60.0):
+                try:
+                    got = eval_stored_formula(txt, {"I1": kw, "I2": volts})
+                except Exception as e:   # noqa: BLE001
+                    drift.append("'mono' %.0f V / %.2f kW: %s" % (volts, kw, e))
+                    continue
+                if got != model_mono(kw, volts):
+                    drift.append("'mono' %.0f V / %.2f kW -> %r, model %r" % (volts, kw, got, model_mono(kw, volts)))
+    chk(bool(tri) and bool(mono) and not drift,
+        "stored '3 fase'/'mono' formula TEXT evaluates identically to the Python model "
+        "over the F11 sweep (%d '3 fase' + %d 'mono' text(s)): %s"
+        % (len(set(tri)), len(set(mono)), drift[:3] if drift else "no drift"))
+    x301 = [ln for ln in vlines if 'Type="ModbusAActor"' in ln
+            and re.search(r'\bModbusAddress="\d301"', ln)]
+    rates = [attr(ln, "RepeatRate") for ln in x301]
+    chk(bool(x301) and set(rates) == {X301_REPEAT},
+        "X301 actuator RepeatRate=%s on all %d charging point(s): %s" % (X301_REPEAT, len(x301), rates))
 
     addrs = sorted(int(a) for a in re.findall(r'\bModbusAddress="(\d+)"', text))
     out.append("  ModbusAddress values: %s" % addrs)
@@ -819,6 +1046,8 @@ def process(path: str, check_only: bool = False) -> bool:
             fix_setpoint(lines, cp, prefix, log)
             fix_setpoint_truncate(lines, cp, prefix, log)
             fix_mono_guard(lines, cp, prefix, log)
+            fix_pause(lines, cp, prefix, log)
+            fix_x301_repeat(lines, cp, log)
             fix_watchdog(lines, cp, prefix, log)
 
     before = open(path, "rb").read()

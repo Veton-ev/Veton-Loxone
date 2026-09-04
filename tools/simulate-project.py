@@ -20,9 +20,9 @@ is Windows-only, so on this box nothing can *run* them.  What we CAN do is:
 
 WHAT IT DOES NOT PROVE  (read this before trusting a green run)
 ---------------------------------------------------------------
-  * It does NOT prove Loxone Config will open/accept the file.  The file is
-    not well-formed XML by the spec (`12hTF="true"` on line 3); we work
-    around that in memory.  Only Loxone Config can validate the file.
+  * It does NOT prove Loxone Config will open/accept the file.  The projects
+    parse as strict XML since 2026-09-03 (the `12hTF` attribute was dropped),
+    but only Loxone Config can validate the file.
   * It does NOT prove that a `Formula` block with NO inputs wired actually
     emits its constant.  That is how the X306/X307 watchdog is fed, so it is
     THE key untested assumption of the whole watchdog design.  This harness
@@ -78,9 +78,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-DEFAULT_SIM_DIR = pathlib.Path(
-    "/tmp/claude-1000/-home-jens/13a2750e-a229-472e-be3a-8558fd694949/scratchpad/sim"
-)
+# Where the CHARX simulator keeps scenario.txt / writes.log; override with
+# --sim-dir or $CHARX_SIM_DIR. No personal paths in a public repo.
+DEFAULT_SIM_DIR = pathlib.Path(os.environ.get("CHARX_SIM_DIR", str(REPO / ".sim")))
 # No site addresses in a public repo: point --host (or $CHARX_HOST) at a
 # simulator or a charger on your own network.
 DEFAULT_HOST = os.environ.get("CHARX_HOST", "127.0.0.1")
@@ -731,11 +731,18 @@ class EvalResult:
 
 
 def evaluate(objs: List[Obj], conn_index, reads: Dict[str, SensorRead],
-             outlimit: float) -> EvalResult:
+             outlimit: float,
+             outlimit_by_wallbox: Optional[Dict[str, float]] = None) -> EvalResult:
     """Propagate values from the sensors to the actuators.
 
     The Wallbox is a stub: its inputs are recorded, its `outLimit` output is
-    injected from the CLI, and every other Wallbox output stays None."""
+    injected from the CLI, and every other Wallbox output stays None.
+
+    `outlimit_by_wallbox` (Wallbox block uuid -> kW) overrides the uniform
+    `outlimit` per block.  Injecting a DIFFERENT value into every Wallbox is
+    the only way to see a cross-wired project: with one shared value, a
+    'CP2 3 fase' that reads Wallbox CP1's outLimit writes exactly what a
+    correctly wired one would."""
     vals: Dict[str, Optional[float]] = {}
     notes: List[str] = []
 
@@ -756,6 +763,8 @@ def evaluate(objs: List[Obj], conn_index, reads: Dict[str, SensorRead],
         c = wb.conn("outLimit")
         if c:
             vals[c.uuid] = outlimit
+            if outlimit_by_wallbox and wb.uuid in outlimit_by_wallbox:
+                vals[c.uuid] = outlimit_by_wallbox[wb.uuid]
 
     def src_val(conn: Conn) -> Optional[float]:
         if not conn.sources:
@@ -1040,23 +1049,137 @@ def run_project(path: pathlib.Path, args, sim: Sim, A: Asserts) -> None:
     rdr_offline = Reader("", 0, 1, offline=True)
     reads_offline = read_sensors(objs, rdr_offline)
     sweep_rows, sweep_ok, sweep_detail = [], True, []
+    # per CP: how many sweep rows had outLimit <= 0 AND produced an X301 write
+    # of exactly 0.  The pause assertion below counts these -- "0.0 is in the
+    # sweep list" proves nothing about what was written.
+    pause_hits: Dict[int, int] = defaultdict(int)
+    x301_cps: set = set()
     for kw in sweep:
         ev = evaluate(objs, conn_index, reads_offline, kw)
         for w in ev.writes:
             if w["addr"] % 1000 != 301:
                 continue
             v = w["written"]
-            ok = v is not None and 6 <= v <= 80 and v != 0
+            x301_cps.add(w["cp"])
+            # outLimit 0 kW = the Wallbox block says pause / load-shed / not
+            # allowed -> X301 must be exactly 0 (CHARX withdraws the charging
+            # release).  Anything else -> 6..80 A, never 0.  The formula maps
+            # every non-positive target to 0, so the branch is `<= 0`.
+            if kw <= 0:
+                ok = v == 0
+                verdict = "OK (pause)" if ok else f"EXPECTED 0 (pause), got {v}"
+                if ok:
+                    pause_hits[w["cp"]] += 1
+            else:
+                ok = v is not None and 6 <= v <= 80
+                verdict = "OK" if ok else "OUT OF RANGE 6..80"
             sweep_ok &= ok
             if not ok:
                 sweep_detail.append(f"CP{w['cp']} {kw} kW -> {v}")
             sweep_rows.append([f"CP{w['cp']}", f"{kw} kW", fmt(w['input']),
-                               fmt(w['register']), v, "OK" if ok else "OUT OF RANGE 6..80"])
+                               fmt(w['register']), v, verdict])
     table(["CP", "outLimit", "formula out [A]", "after correction", "register written", "verdict"],
           sweep_rows)
-    A.check(f"{tag}: X301 always in 6..80 A and never 0 across the outLimit sweep "
-            f"({', '.join(str(s) for s in sweep)} kW)",
+    A.check(f"{tag}: X301 == 0 for outLimit 0 kW (pause), else in 6..80 A and never 0, "
+            f"across the outLimit sweep ({', '.join(str(s) for s in sweep)} kW)",
             sweep_ok and bool(sweep_rows), "; ".join(sweep_detail) or f"{len(sweep_rows)} rows")
+    missing_pause = sorted(cp for cp in x301_cps if pause_hits.get(cp, 0) < 1)
+    A.check(f"{tag}: every CP's X301 actually WROTE 0 for at least one outLimit <= 0 kW "
+            f"row of the sweep (pause exercised, not merely listed)",
+            bool(x301_cps) and not missing_pause,
+            ("no X301 actuator found" if not x301_cps else
+             (f"CP(s) without a 0-write: {missing_pause}" if missing_pause else
+              "; ".join(f"CP{cp}: {n} row(s) wrote 0"
+                        for cp, n in sorted(pause_hits.items())))))
+
+    # ---- 11e'. cross-wiring: each CP's X301 driven by ITS OWN Wallbox ---
+    # A uniform outLimit cannot tell "CP2 3 fase reads Wallbox CP2" from "CP2
+    # 3 fase reads Wallbox CP1".  Inject a DISTINCT value per Wallbox (base +
+    # 1.0 kW x CP index -> distinct amps after the formula), then require that
+    # CP n's X301 write equals what a uniform run at Wallbox n's value would
+    # have written for CP n.  Independently, walk the wire graph from each
+    # X301 actuator back to the Wallbox block(s) it reaches and require it to
+    # be exactly one, carrying the same CP.
+    head(f"{tag}: X301 CROSS-WIRING CHECK  (distinct outLimit per Wallbox)")
+    wallboxes = [o for o in objs if o.type == "Wallbox"]
+
+    def wallbox_cp(wb: Obj) -> Optional[int]:
+        m = re.search(r"\bCP\s*(\d+)\b", wb.title or "", re.I)
+        if m:
+            return int(m.group(1))
+        if len(wallboxes) == 1 and len(cps or [1]) == 1:
+            return (cps or [1])[0]
+        return wb.cp
+
+    def trace_to_wallboxes(o: Obj, seen: Optional[set] = None) -> List[Obj]:
+        """Every Wallbox block reachable upstream of `o` through <In> wires."""
+        seen = seen if seen is not None else set()
+        if o.uuid in seen:
+            return []
+        seen.add(o.uuid)
+        if o.type == "Wallbox":
+            return [o]
+        found: List[Obj] = []
+        for c in o.conns:
+            if c.is_output:
+                continue
+            for s in c.sources:
+                src = conn_index.get(s)
+                if src:
+                    found.extend(trace_to_wallboxes(src[0], seen))
+                elif s in by_uuid:
+                    found.extend(trace_to_wallboxes(by_uuid[s], seen))
+        return found
+
+    base_kw = 7.4
+    inject: Dict[str, float] = {}
+    wb_by_cp: Dict[int, Obj] = {}
+    for wb in wallboxes:
+        cp = wallbox_cp(wb)
+        if cp is None:
+            continue
+        wb_by_cp[cp] = wb
+        inject[wb.uuid] = base_kw + 1.0 * cp
+    ev_distinct = evaluate(objs, conn_index, reads_offline, base_kw, inject)
+    xw_rows, xw_ok, xw_detail = [], True, []
+    tr_ok, tr_detail, tr_summary = True, [], []
+    for w in ev_distinct.writes:
+        if w["addr"] % 1000 != 301:
+            continue
+        cp = w["addr"] // 1000
+        wb = wb_by_cp.get(cp)
+        if wb is None:
+            xw_ok = False
+            xw_detail.append(f"CP{cp}: no Wallbox block titled for CP{cp}")
+            xw_rows.append([f"CP{cp}", "-", "-", w["written"], "-", "NO WALLBOX FOR THIS CP"])
+            continue
+        # what CP n's X301 writes when EVERY Wallbox carries Wallbox n's value
+        ev_uniform = evaluate(objs, conn_index, reads_offline, inject[wb.uuid])
+        want = next((u["written"] for u in ev_uniform.writes if u["addr"] == w["addr"]), None)
+        ok = w["written"] is not None and w["written"] == want
+        xw_ok &= ok
+        if not ok:
+            xw_detail.append(f"CP{cp}: X{w['addr']} wrote {w['written']} but its own "
+                             f"'{wb.title}' @ {inject[wb.uuid]} kW implies {want}")
+        reached = trace_to_wallboxes(w["obj"])
+        names = sorted({r.title or r.uuid for r in reached})
+        reached_cps = sorted({wallbox_cp(r) for r in reached})
+        t_ok = len(names) == 1 and reached_cps == [cp]
+        tr_ok &= t_ok
+        tr_summary.append(f"X{w['addr']} <- {', '.join(names) or 'NO Wallbox'}")
+        if not t_ok:
+            tr_detail.append(f"X{w['addr']} <- {names or 'NO Wallbox'} (CP {reached_cps})")
+        xw_rows.append([f"CP{cp}", wb.title, f"{inject[wb.uuid]} kW", w["written"], want,
+                        ("OK" if ok else "CROSS-WIRED") + " / trace: " + ", ".join(names or ["-"])])
+    table(["CP", "own Wallbox", "injected", "X301 written", "expected from own Wallbox", "verdict"],
+          xw_rows)
+    A.check(f"{tag}: each CP's X301 is driven by its own Wallbox block",
+            xw_ok and bool(xw_rows) and len(inject) == len(wallboxes),
+            "; ".join(xw_detail) or
+            (f"{len(xw_rows)} X301 actuator(s), injected " +
+             ", ".join(f"{wb.title}={inject[wb.uuid]} kW" for wb in wallboxes if wb.uuid in inject)))
+    A.check(f"{tag}: each X301 actuator's wire trace reaches exactly one Wallbox, of the same CP",
+            tr_ok and bool(xw_rows), "; ".join(tr_detail) or "; ".join(tr_summary))
 
     # ---- 11f. watchdog chain --------------------------------------------
     head(f"{tag}: WATCHDOG CHAIN (X306 / X307)")
@@ -1229,12 +1352,20 @@ def run_project(path: pathlib.Path, args, sim: Sim, A: Asserts) -> None:
                     print(f"  (CP{cp} reports {st}, not charging -- skipping the "
                           f"7.4 kW power assertion for it)")
 
-                # X301 must stay legal whatever the charger reports
+                # X301 must stay legal whatever the charger reports: exactly 0
+                # when the injected outLimit is <= 0 (pause -- the formula maps
+                # every non-positive target to 0), else 6..80 A, never 0
                 for w in ev.writes:
                     if w["addr"] == cp * 1000 + 301:
-                        A.check(f"{tag}/{scen}/CP{cp}: X301 write in 6..80 A, never 0",
-                                w["written"] is not None and 6 <= w["written"] <= 80,
-                                f"got {w['written']}")
+                        if args.outlimit <= 0:
+                            A.check(f"{tag}/{scen}/CP{cp}: X301 write == 0 (pause) for "
+                                    f"outLimit {args.outlimit} kW",
+                                    w["written"] == 0, f"got {w['written']}")
+                        else:
+                            A.check(f"{tag}/{scen}/CP{cp}: X301 write in 6..80 A, never 0, "
+                                    f"for outLimit {args.outlimit} kW",
+                                    w["written"] is not None and 6 <= w["written"] <= 80,
+                                    f"got {w['written']}")
     finally:
         rdr.close()
 

@@ -1,8 +1,9 @@
 # Veton-Loxone — Claude Code instructions
 
-<!-- Template from veton-handbook/templates/CLAUDE.md.template. Keep every section; write
+<!-- Template from the internal handbook's CLAUDE.md template. Keep every section; write
 "none" rather than deleting one. Facts here must be checked against the code, not remembered.
-Cross-cutting knowledge (fleet, runbooks, access, suppliers) lives in the handbook — link, don't copy. -->
+Cross-cutting knowledge (fleet, runbooks, access, suppliers) lives in the internal handbook —
+link, don't copy. -->
 
 > **THIS REPOSITORY IS PUBLIC** (`github.com/Veton-ev/Veton-Loxone`, MIT).
 > Nothing internal may be committed: no hostnames, no customer or site names, no fleet numbers,
@@ -16,19 +17,24 @@ artefacts plus two scripts (`tools/fix-loxone-project.py` and the offline harnes
 `tools/simulate-project.py`, see Run/test/build):
 `Veton.Loxone` (a Loxone Config 16.x project file, XML: Modbus server + device with
 the CHARX register map, inputs for energy/power/V/I/vehicle status/error/release mode/SOC,
-outputs for max current X301 plus the CHARX safety watchdog X306 (fallback current 6 A) and
-X307 (timer 300 s) — the X300 release and X303 lock writes were dropped 2026-09-03, see
-Gotchas — a Wallbox block + visualisation page), `Veton-2CP.Loxone` (the same project for a **two-charging-point** cabinet: one Modbus
+outputs for max current X301 (pause-aware since 2026-09-04: Wallbox target 0 → X301 = 0 =
+pause, anything above → 6–80 A; re-sent every 60 s) plus the CHARX safety watchdog X306
+(fallback current 6 A) and X307 (timer 300 s) — the X300 release and X303 lock writes were
+dropped 2026-09-03, see Gotchas — a Wallbox block + visualisation page),
+`Veton-2CP.Loxone` (the same project for a **two-charging-point** cabinet: one Modbus
 device carrying CP1 on `1xxx` and CP2 on `2xxx`, with the Wallbox block, Vc/Cac formulas and
 visualisation mirrored per point), `MB_Veton.xml` (a Loxone **Modbus device template**, the
 format the official Loxone Library accepts, charging point 1) and `MB_Veton_CP2.xml` (the same
-template for charging point 2, `2xxx`). Consumers: Loxone installers/end customers and the
+template for charging point 2, `2xxx`).
+**Writes only take effect once the charger is in external-control mode** (internal CHARX
+load management detached — see Gotchas); reads work regardless.
+Consumers: Loxone installers/end customers and the
 Loxone Library. It is the Loxone counterpart of `Veton-ev/HA-Veton`; the protocol reference
 behind both is `Veton-ev/Veton-EMS-Integration`. **Not deployed.**
-Handbook: `veton-handbook/10-fleet/`.
+Handbook: the internal handbook's fleet section.
 
 ## Ownership
-Owners: TBD (Brend / Andrii). Escalation: Jens. Handbook page: `veton-handbook/10-fleet/`.
+Owners and escalation: see `CLAUDE.local.md` (not committed) / the internal handbook.
 
 ## Run / test / build
 ```bash
@@ -46,7 +52,7 @@ python3 -c "import xml.etree.ElementTree as ET; [ET.parse(f) for f in ('MB_Veton
 python3 tools/fix-loxone-project.py Veton.Loxone Veton-2CP.Loxone   # apply + verify
 python3 tools/fix-loxone-project.py --check Veton.Loxone            # verify only, no writes
 ```
-`tools/fix-loxone-project.py` re-applies the ten hand fixes to the two `.Loxone` projects:
+`tools/fix-loxone-project.py` re-applies the twelve hand fixes to the two `.Loxone` projects:
 blank the document password salt (F1), Active Power X244 correction mW→kW (F2), Counter
 Active Energy X250 `MaxVal` ceiling 10 000 → 100 000 000 (F3), drop the X300/X303 writes
 (F4), clamp the X301 setpoint to 6–80 A and unwire `mono` so only `3 fase` drives it (F5),
@@ -56,21 +62,32 @@ today that is only **Error Code X293**, a 32-bit *bitfield* where bit N = `2**(N
 ±10 000 hides every fault from bit 15 up; set to `0`/`4294967295`), wrap the X301 division in
 `INT()` so the setpoint **truncates** instead of rounding up past the budget the Wallbox block
 asked for (F8 — 7.4 kW was 10.68 A → 11 A ≈ 7.62 kW, now 10 A), and guard the single-phase
-`mono` formula's divide-by-zero (F9 —
-`IF(I2&gt;100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6)`, shown exactly as it is stored,
-i.e. `>` XML-escaped like the existing `IF(I1&gt;16944;…)`; the divisor is floored as well as
-guarded, because Loxone's `IF` laziness is undocumented; I2 is the *measured* L1 voltage and
-reads 0 whenever the charger is unreachable, and 0 A on X301 withdraws the charging release),
-and remove the `12hTF` document attribute so the file is well-formed XML (F10 — Config writes
-it back on every save, so this fix runs every time). `mono` stays unwired, but README tells single-phase
+`mono` formula's divide-by-zero (F9 — the guard is
+`IF(I2&gt;100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6)`, with `>` XML-escaped like the
+existing `IF(I1&gt;16944;…)`; F11 below wraps it into the stored final form; the divisor is
+floored as well as guarded, because Loxone's `IF` laziness is undocumented; I2 is the
+*measured* L1 voltage and reads 0 whenever the charger is unreachable, and 0 A on X301
+withdraws the charging release),
+remove the `12hTF` document attribute so the file is well-formed XML (F10 — Config writes
+it back on every save, so this fix runs every time), make both setpoint formulas
+**pause-aware** (F11 — outer `IF(I1&gt;0;…;0)`: Wallbox target 0 → X301 = 0 = pause, else the
+F5/F8/F9 clamp; final stored forms
+`IF(I1&gt;0;MIN(MAX(INT((I1*1000)/(400*1,732));6);80);0)` and
+`IF(I1&gt;0;IF(I2&gt;100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6);0)`), and set the X301
+actuator's `RepeatRate` 3600 → **60** (F12 — re-asserts the setpoint every minute; some CHARX
+firmware has been seen to drop an external X301 back to 0 after a controller-side restart or a
+stray write, and the re-send restores it within one interval. Whether a 0 is re-sent too is
+unconfirmed — the pause is written on change either way).
+F11/F12 apply to both projects; the two templates carry F12 too (hand-edited). `mono` stays
+unwired, but README tells single-phase
 installers to swap to it, so it has to be safe first. It matches on stable attribute patterns
 (`ModbusAddress=`, `Title=`, `Formula=`, `Ref=`, `Co K=`) — never on line numbers — preserves
 BOM + CRLF, and **is idempotent**: every fix detects "already applied" and skips, so a second
 run rewrites nothing (byte-identical). It then self-verifies (BOM, line endings, unique `U=`,
 no dangling `<In Input>`/`Ref=`, `<C>`/`</C>` balance, strict XML well-formedness *and* the
 absence of `12hTF`, salt and `APPKEY`/`Address`/`Serial` blank, expected `ModbusAddress` set, no overlapping
-page rectangles, every sensor range wide enough for its register, and both setpoint formulas
-in their final clamped/truncated/guarded form).
+page rectangles, every sensor range wide enough for its register, both setpoint formulas
+in their final pause-aware/clamped/truncated/guarded form, and X301 `RepeatRate="60"`).
 The register spans F7 audits live in `REGISTER_SPAN` and are sourced from
 `charx-doctor/references/modbus-register-map.yaml` + `error-codes.yaml`; a sensor whose
 register is not in that table is reported as **NOT AUDITED** rather than silently passed —
@@ -90,8 +107,7 @@ agents off `git push` to main and force pushes. Branch protection (require `ci`)
 setting still to be clicked.
 
 ## Deploy
-**Not deployed.** Not in the 2026-08-26 deploy survey
-(`veton-handbook/70-runbooks/deploy-paths-survey-2026-08-26.md`). Publishing = merging to
+**Not deployed.** Not in the 2026-08-26 deploy survey (internal handbook). Publishing = merging to
 `main` (GitHub) and, separately, a manual submission of `MB_Veton.xml` to the Loxone Library
 (curated by Loxone, no automation). Rollback = revert the commit.
 Blast radius of a bad change: Loxone customers import wrong register numbers / an unsafe write
@@ -103,11 +119,11 @@ Path to `main`: PR with the `ci` check green (secret scan); agents cannot push t
   `Veton-2CP.Loxone` device `ModbusAddress="1xxx"`/`"2xxx"` attributes, plus `MB_Veton.xml` and
   `MB_Veton_CP2.xml` `ModbusAddress`), charging point 1 = `1xxx`, point 2 = `2xxx`, others at
   `connector × 1000`. Same map in `Veton-EMS-Integration/docs/modbus.md`, `vetonlm/registers`,
-  `savings-collector`, `charx-doctor/references`, `veton-ha`, `veton-evse-agent/internal/charx`.
-  Change a register → change **all four files here** and check the other copies.
+  `savings-collector`, `charx-doctor/references`, `veton-ha` and the internal charger-agent
+  repos. Change a register → change **all four files here** and check the other copies.
 - **`Veton-ev/Veton-EMS-Integration`** is the documented reference and states the integration
   policy; **`Veton-ev/HA-Veton`** is the sibling integration. Keep the three consistent.
-See handbook `00-orientation/seams.md`.
+See the internal handbook's seams page.
 
 ## Gotchas (this repo only)
 - **Four copies of the register map.** `Veton.Loxone` and `MB_Veton.xml` were authored
@@ -130,6 +146,37 @@ See handbook `00-orientation/seams.md`.
   kept in README "Why X300 / X303 are not written", including that a standalone **non-OCPP**
   charger may add them by hand with **FC06 (`ModbusCmd="6"`), never FC05**. Do not re-add
   them to the shipped artefacts without a new owner decision.
+- **Internal LM overwrites X301.** A Veton charger ships with the CHARX **internal load
+  management active**: the charging points sit in a CHARX load circuit and the internal
+  manager rewrites X301 every cycle. In that state every read works (power, energy, Vc/Cac,
+  errors) but every Loxone X301 write — the pause included — is overwritten within seconds,
+  and "the Wallbox block does nothing" is the symptom. Loxone only controls current once the
+  charger is in **external-control mode** (points detached from the load circuit; on a
+  Veton-managed charger that is done by Veton via app/backend, never from Loxone). README
+  "Who controls the current" + Requirements say so; keep them. Corollaries: in that mode the
+  X306/X307 watchdog is the only protection when the Miniserver stops (never drop F6), and
+  two writers (Loxone + Veton solar/smart modes, or any second EMS) fight and leave cars
+  paused. Source: Veton's own charger agents (which detach the load circuit before writing
+  X301) and earlier live measurements — not re-tested from this repo (2026-09-04).
+- **X301 = 0 is the deliberate pause; never let any other path write 0.** Since 2026-09-04
+  (F11) the formulas write X301 = 0 exactly when the Wallbox block's target power is 0
+  (paused / shed / Off / no charging mode); on a CHARX that withdraws the charging release
+  and the car pauses, while OCPP keeps the session. Every other path stays ≥ 6 A by design:
+  the mono voltage guard (F9) falls back to 6, sub-6 A requests floor at 6 (F5), the
+  watchdog fallback X306 is 6. A stray 0 from any other source looks identical to a pause
+  and is very hard to see from Loxone. When touching a formula, keep the outer `IF(I1&gt;0;…;0)`
+  as the **only** producer of 0 and re-run `--check`. **Corollary: no charging mode selected,
+  or the block's *Mode after unplugging vehicle* parameter = Off, now means a paused car** —
+  the block outputs target 0 in that state, the project ships with no mode selected, and the
+  block falls back to that parameter after anything it treats as an unplug (including an
+  unreachable charger: Vehicle status reads 0, Vc drops, session ends). README Install step 6
+  requires the setting; keep that step. Known caveats documented in README
+  "Pause semantics" (sleeping EVs need unplug/replug, watchdog resumes at 6 A after 300 s
+  when the Miniserver dies mid-pause, CHARX 1.9.1 opens the contactor on a sub-6 A setpoint
+  during ISO 15118 — README gives the opt-out: drop the outer `IF(I1&gt;0;…;0)`, and `--check`
+  then reports "not pause-aware", expected there). F12 (`RepeatRate="60"`) exists because some
+  firmware has been seen to drop an external X301 back to 0 after a controller-side restart
+  or a stray write — do not raise it back to 3600.
 - **`12hTF`: RESOLVED 2026-09-03 — the attribute was removed and all four artefacts now
   parse strictly.** History: line 3 of both `.Loxone` projects carried a document attribute
   `12hTF="true"` — a 12-hour-clock display setting whose name starts with a digit, which XML
@@ -156,9 +203,8 @@ See handbook `00-orientation/seams.md`.
   points").
 - **The CP2 artefacts are machine-generated, but the generator is not in the repo.**
   `Veton-2CP.Loxone` and `MB_Veton_CP2.xml` were produced from the single-point files by a
-  script that exists only at
-  `/tmp/claude-1000/-home-jens/13a2750e-a229-472e-be3a-8558fd694949/scratchpad/make2cp.py`
-  — a session scratchpad, i.e. throwaway. It is a **known gap**: nothing in the repo can
+  script that exists only in a session scratchpad outside the repo (throwaway). It is a
+  **known gap**: nothing in the repo can
   regenerate CP2, so today a register change means editing the CP2 files by hand (or writing
   the generator again). Committing that script is the fix.
 - **`MinVal`/`MaxVal` cannot be expressed in a Modbus device template.** They are valid on
@@ -180,8 +226,9 @@ See handbook `00-orientation/seams.md`.
   + `.claude/hooks/guard.sh` and by branch protection — HANDOVER-PLAN Phase 4/5).
 - Never run deploy/ssh-to-production commands; there is nothing to deploy from this repo.
 - **Public repo:** never commit secrets, Miniserver APPKEYs, charger IPs, customer names or
-  fleet numbers; `gitleaks` pre-commit + CI will fail the commit/PR once Phase 4 lands. No
-  secrets belong to this repo; the handbook `60-access/` says where fleet secrets live, never
-  the value.
-- Write durable lessons to `veton-handbook/lessons/` (one file per lesson), not to
-  personal memory.
+  fleet numbers; `gitleaks` pre-commit + CI will fail the commit/PR once Phase 4 lands. The
+  pre-commit hook also refuses staged content carrying internal names, personal paths or
+  session-scratchpad paths. No secrets belong to this repo; the internal handbook's access
+  section says where fleet secrets live, never the value.
+- Write durable lessons to the internal handbook's lessons folder (one file per lesson),
+  not to personal memory.

@@ -31,7 +31,7 @@ this project — is in the [changelog](CHANGELOG.md).
 - **`MB_Veton.xml`** — a **Modbus device template** (the format the Loxone
   Library expects). Importing it adds the CHARX register map (12 sensors +
   3 actuators) to a Modbus device in one step, without the rest of the
-  project. Targets **charging point 1** (`1xxx`). Two of the inputs need a
+  project. Targets **charging point 1** (`1xxx`). Three of the inputs need a
   manual validity-range fix after import — see
   [After importing the template](#after-importing-the-template-required).
 - **`MB_Veton_CP2.xml`** — the same template for **charging point 2** (`2xxx`),
@@ -44,6 +44,11 @@ this project — is in the [changelog](CHANGELOG.md).
   (`Miniserver="2"`) and have only been tried there — Gen 1 is untested, not known
   to be unsupported.
 - A **Veton / CHARX** charger reachable on the LAN with **Modbus/TCP enabled** (port `502`).
+- For Loxone to **control** the charging current (not just read the charger), the
+  charger must be in **external-control mode** — see
+  [Who controls the current](#who-controls-the-current-internal-load-management-vs-loxone).
+  As shipped, a Veton charger's own load management owns `X301` and overwrites
+  every value Loxone writes within seconds; reading works regardless.
 
 ## Install
 
@@ -55,6 +60,49 @@ this project — is in the [changelog](CHANGELOG.md).
    offset by `connector × 1000` (connector 2 → `2xxx`: `2120`, `2232`, `2244`,
    `2250`, `2301` …).
 4. Save to the Miniserver.
+5. Have the charger put in **external-control mode** (next section) — otherwise
+   the Wallbox block's setpoint and pause never take effect.
+6. In the Loxone app **select a charging mode** for the Wallbox, and in Loxone
+   Config set the block's ***Mode after unplugging vehicle*** parameter to a
+   charging mode (e.g. *Max. charging power*) rather than *Off* — otherwise the
+   block asks for 0 kW and the car is paused until someone picks a mode. The
+   project ships with no mode selected and that parameter at its default.
+   Note the block's `allow` input is shipped **inverted and unwired**
+   (unconnected = charging allowed); wiring a "1 = allowed" signal to it
+   without removing the inversion pauses the car.
+
+## Who controls the current: internal load management vs Loxone
+
+A CHARX has its **own load management** built in, and a Veton charger ships with
+it **active**: the charging points belong to a CHARX load circuit and the
+internal manager rewrites the `X301` setpoint of every point on each cycle. In
+that state everything this project **reads** works — power, energy, voltages,
+currents, vehicle status (`Vc`/`Cac`), error code — but every `X301` **write**,
+the pause included, is overwritten within seconds. It looks as if the Wallbox
+block "does nothing".
+
+| Charger state | Loxone reads | Loxone `X301` writes |
+|---|---|---|
+| Internal load management active (as shipped) | work | **overwritten within seconds** |
+| External-control mode | work | **take effect** |
+
+For Loxone to control current, the charger has to be put in **external-control
+mode**: the charging points are detached from the CHARX load circuit so that
+nothing on the charger writes `X301` any more. On a Veton-managed charger this
+is done **by Veton** — through the Veton app or backend — not from Loxone; ask
+for it when you commission the installation.
+
+Two consequences of that mode:
+
+- **The watchdog is the only protection left.** Once nothing on the charger
+  owns `X301`, a Miniserver that dies mid-session would leave the last setpoint
+  in place forever. That is why the project ships the **X306/X307 watchdog**
+  (below) and why it must stay in.
+- **One energy manager per charger.** Do not run another manager — Veton's
+  solar/smart charging modes, a second EMS, a Home Assistant automation — on
+  the same charger at the same time as Loxone. Two writers fight over `X301`,
+  and the usual result is a car that ends up **paused** because the loser wrote
+  0 or 6 A last.
 
 ## Register map (CHARX)
 
@@ -68,7 +116,7 @@ this project — is in the [changelog](CHANGELOG.md).
 | Charging release mode | X120 | read |
 | SOC | X264 | read |
 | Error code | X293 | read |
-| Max charging rate (A) | X301 | **write** (FC06, re-sent hourly) |
+| Max charging rate (A) | X301 | **write** (FC06, re-sent every 60 s) |
 | Watchdog fallback current (A) | X306 | **write** (FC06, re-sent hourly) |
 | Watchdog timer (s) | X307 | **write** (FC06, re-sent every 60 s) |
 | Charging release | X300 | *not written* — see below |
@@ -118,6 +166,12 @@ legitimately need them. Add them by hand, as **FC06 Write Single Register
 
 Do not do this on a Veton charger that talks to the Veton backend.
 
+Note that **pausing a car via `X301 = 0`** (see
+[Pause semantics](#pause-semantics-what-a-0-kw-request-does)) does **not** take
+release away from OCPP either: OCPP still authorises the session and keeps
+recording it; the pause is simply a current cap of zero. The session stays open
+and resumes as soon as the cap goes back to 6 A or above.
+
 ### Watchdog (X306 / X307)
 
 The CHARX has a **safety watchdog** on the current setpoint: if nothing writes
@@ -133,17 +187,33 @@ while `X301` is sitting at a high value.
 6 A is the IEC 61851 minimum, so a dead Miniserver **slows the car down rather
 than cutting it off**.
 
-Loxone has no "keep-alive" primitive — what feeds the watchdog is the actuator's
-**`RepeatRate`**: Loxone re-sends an analogue output's value every `RepeatRate`
-seconds as long as that value is greater than 0. X307 therefore ships with
-`RepeatRate="60"` — five re-sends of margin inside the 300 s window — and X306,
-which only needs to be present, with `RepeatRate="3600"`. In the projects both
-registers are driven by a constant **Formula** block feeding an output ref; in
-the templates they are plain actuators you feed with a constant (`6` and `300`).
+Loxone has no "keep-alive" primitive — what feeds the watchdog is the Modbus
+actuator's **`RepeatRate`**, which Loxone Config 17's help text for the Modbus
+output repeat property describes as the *"interval in seconds, at which the
+output value is sent again"*. Whether a value of **0** is also re-sent has not
+been confirmed on a Miniserver. Either way the pause is written once, on
+change, and that write is what pauses the car; the 60 s re-send matters for the
+non-zero setpoints. X307 therefore ships with `RepeatRate="60"` — five re-sends of margin inside the
+300 s window — and X306, which only needs to be present, with `RepeatRate="3600"`.
+In the projects both registers are driven by a constant **Formula** block feeding
+an output ref; in the templates they are plain actuators you feed with a constant
+(`6` and `300`).
+
+| Actuator | `RepeatRate` | Why |
+|---|---|---|
+| X301 max current | **60 s** | re-asserts the setpoint every minute (see below; the pause itself is written on change) |
+| X306 fallback current | 3600 s | only needs to be present |
+| X307 watchdog timer | **60 s** | feeds the watchdog; five re-sends inside the 300 s window |
 
 **`RepeatRate` must stay well below the X307 value — keep at least a 2× margin.**
 If you raise it above the timer (or lengthen the timer's re-send interval), the
 watchdog fires during normal operation and pegs the charger at the 6 A fallback.
+
+`X301` is re-sent every **60 s** as well (it used to be hourly). Some CHARX
+firmware has been seen to drop an externally written `X301` back to 0 after a
+controller-side restart or a stray write; a client that re-sends its setpoint
+restores it within one `RepeatRate` interval, one that writes once an hour
+leaves the car at 0 for up to an hour.
 
 ### Vehicle status (X299) → Wallbox **Vc** / **Cac**
 
@@ -186,18 +256,74 @@ page:
 
 | Block | Formula | Inputs | For |
 |---|---|---|---|
-| `3 fase` | `MIN(MAX(INT((I1*1000)/(400*1,732));6);80)` | I1 = Wallbox `outLimit` [kW] | three-phase 400 V — **wired by default** |
-| `mono` | `IF(I2>100;MIN(MAX(INT((I1*1000)/I2);6);80);6)` | I1 = Wallbox `outLimit` [kW], I2 = *Voltage of phase L1* [V] | single-phase — **shipped on the page, deliberately not wired** |
+| `3 fase` | `IF(I1>0;MIN(MAX(INT((I1*1000)/(400*1,732));6);80);0)` | I1 = Wallbox `outLimit` [kW] | three-phase 400 V — **wired by default** |
+| `mono` | `IF(I1>0;IF(I2>100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6);0)` | I1 = Wallbox `outLimit` [kW], I2 = *Voltage of phase L1* [V] | single-phase — **shipped on the page, deliberately not wired** |
 
 **Only one of the two may be connected to `Max Charging Rate I`.** Both were
 connected in earlier versions, so two blocks wrote conflicting values into the
 same register, last-writer-wins. `mono` was disconnected on 2026-09-03 and
 `3 fase` kept.
 
-`X301`'s valid range is **6–80 A** and **writing 0 withdraws the charging
-release** entirely (documented in `Veton-EMS-Integration/docs/modbus.md`), so a
-0 kW request from the Wallbox block must land on 6 A, not on 0 — that is what
-the `MIN`/`MAX` clamp is for.
+Both formulas are **pause-aware**: the outer `IF(I1>0;…;0)` passes a 0 kW
+request through as **0 A**, and any request above 0 kW is converted, truncated
+and clamped to `X301`'s valid **6–80 A** range. What that 0 does is the next
+section.
+
+### Pause semantics: what a 0 kW request does
+
+The Wallbox block puts its target power (`outLimit`, "Tp") to **0** when the
+session is paused, when load shedding leaves nothing for the car, when the block
+is *Off*, or when no mode allowing charging is active. On a CHARX, **writing
+`X301 = 0` withdraws the charging release** (documented in
+`Veton-EMS-Integration/docs/modbus.md`) — the charger tells the car to stop
+drawing. The project uses exactly that as the pause:
+
+| Wallbox target power | `X301` written | Charger | Car |
+|---|---|---|---|
+| **0 kW** | **0 A** | withdraws the charging release | **pauses** |
+| > 0 kW | 6 … 80 A | keeps / restores the release, caps the current | charges, resumes after a pause |
+
+Earlier versions clamped every request to a 6 A floor, so "pause" from the
+Wallbox block meant "charge at 6 A". Now a pause is a pause. Things to know
+before relying on it:
+
+- **No charging mode selected, or *Mode after unplugging vehicle* = Off, is
+  the #1 reason a car will not charge.** The block outputs a target power of 0
+  whenever no charging mode is active, and the project ships with no mode
+  selected and that parameter at its default. So a fresh import in
+  external-control mode writes `X301 = 0` and re-sends it every 60 s: the car
+  never starts. The same happens after anything the block treats as an unplug
+  — including the charger being unreachable for a while: the *Vehicle status*
+  input reads 0, `Vc` drops, the session ends and the block falls to its
+  mode-after-unplug. Select a mode in the app and set *Mode after unplugging
+  vehicle* to a charging mode (e.g. *Max. charging power*), see Install step 6.
+  Also: the block's `allow` input ships **inverted and unwired** (unconnected =
+  charging allowed) — wiring a "1 = allowed" signal there without removing the
+  inversion pauses the car.
+- **Some EVs go to sleep during a long pause** and do not resume when current
+  is offered again; they need an unplug/replug. Loxone has no way to send a wake
+  pulse to the car, so if a car on your site behaves like that, avoid long
+  pauses for it (raise the block's *Min. charging power* parameter, default
+  4.16 kW, instead of pausing).
+- **If the Miniserver dies during a pause**, the watchdog fallback (X306 =
+  **6 A**) resumes the car at 6 A after 300 s. That is fail-safe toward *slow
+  charging*, by design — a dead Miniserver never leaves a car stranded, but it
+  also does not keep it paused.
+- **Firmware 1.9.1 and ISO 15118.** The Phoenix Contact CHARX 1.9.1 release
+  notes list a known issue: during an ISO 15118 session (plug-and-charge /
+  high-level communication), a load-management setpoint **below 6 A opens the
+  contactor under load** — and the 0 A pause is such a setpoint. On 1.9.1 with
+  15118-capable cars, either disable 15118 on the charging point or go back to
+  a never-pausing setpoint: remove the outer `IF(I1>0;…;0)` from both formulas,
+  i.e. use `MIN(MAX(INT((I1*1000)/(400*1,732));6);80)` for `3 fase` and
+  `IF(I2>100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6)` for `mono` (the
+  2026-09-03 forms, which floor a 0 kW request at 6 A). The fix script's
+  `--check` will then report the formulas as not pause-aware — expected on
+  such a site.
+- **`X301 = 0` is the only zero this project ever writes**, and only while the
+  Wallbox block asks for 0. Every other path — a voltage reading that is
+  missing, a request too small to convert, the watchdog fallback — stays at
+  **6 A or above**. If you edit the formulas, keep it that way.
 
 ### The setpoint truncates, it never rounds up
 
@@ -212,32 +338,36 @@ Both formulas therefore wrap the division in **`INT()`** (Loxone's documented
 "integer function (removes decimals)"), so the setpoint **truncates**: 7.4 kW →
 10 A, 11 kW → 15 A, 22 kW → 31 A. Loxone never asks the charger for more power
 than the Wallbox block asked for. The one deliberate exception is the bottom of
-the range: a request below 6 A still lands on the 6 A floor, because writing 0
-would withdraw the charging release altogether.
+the range: a request **above 0 kW but below 6 A** still lands on the 6 A floor,
+because the CHARX accepts nothing between 0 and 6 A — 6 A is the IEC 61851
+minimum. A request of exactly **0 kW** is not floored: it becomes the 0 A
+pause described above.
 
 ### Single-phase (`mono`)
 
 On a **single-phase supply**, swap the two blocks in Loxone Config: disconnect
 `3 fase` from `Max Charging Rate I`, then connect `mono`'s output to it instead.
-`mono` already ships with the clamp, the truncation **and** a divide-by-zero
-guard:
+`mono` already ships with the pause, the clamp, the truncation **and** a
+divide-by-zero guard:
 
 ```
-IF(I2>100;MIN(MAX(INT((I1*1000)/I2);6);80);6)
+IF(I1>0;IF(I2>100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6);0)
 ```
 
 `I2` is the **measured** *Voltage of phase L1* input, not a nominal 230 V — and
 a measured input reads **0** whenever the charger is unreachable, the poll has
-not landed yet, or the contactor is open. Dividing by that yields 0 A, and 0 is
-precisely the value that withdraws the charging release. The `IF` guard means
-*"only compute a setpoint when we have a plausible mains reading"*: **100 V** is
-below every real single-phase supply (230 V nominal, 207–253 V at ±10 %) and
-above every partial or absent reading, so anything at or under it falls back to
-the 6 A minimum instead of dividing.
+not landed yet, or the contactor is open. Dividing by that would yield 0 A, and
+0 is precisely the value that withdraws the charging release — an *accidental*
+pause. The inner `IF` guard means *"only compute a setpoint when we have a
+plausible mains reading"*: **100 V** is below every real single-phase supply
+(230 V nominal, 207–253 V at ±10 %) and above every partial or absent reading,
+so anything at or under it falls back to the 6 A minimum instead of dividing
+(the divisor is floored at 100 as well, in case Loxone evaluates both branches).
+The outer `IF(I1>0;…;0)` is the deliberate pause, same as in `3 fase`.
 
 If you would rather not depend on a live reading at all, use the nominal voltage
-and drop the guard with it: `MIN(MAX(INT((I1*1000)/230);6);80)`, leaving I2
-unconnected.
+and drop the guard with it: `IF(I1>0;MIN(MAX(INT((I1*1000)/230);6);80);0)`,
+leaving I2 unconnected.
 
 > Loxone formulas use a **comma** as the decimal separator (`1,732`) and a
 > **semicolon** as the argument separator.
@@ -305,7 +435,7 @@ already ship with all three applied; only template users have to do this.
 
 | Input | Set | Why |
 |---|---|---|
-| **Counter Active Energy** (X250) | Maximum value `10000` → **`100000000`** | It is a **lifetime** kWh counter. A charger past 10 000 kWh exceeds the default ceiling and the input stops reporting — a charger on the bench already reads 12 182 kWh, so the old ceiling breaks real units today. |
+| **Counter Active Energy** (X250) | Maximum value `10000` → **`100000000`** | It is a **lifetime** kWh counter. A charger past 10 000 kWh exceeds the default ceiling and the input stops reporting — the charger on the bench already reads 12 182 kWh, so the old ceiling is already exceeded. |
 | **Vehicle status** (X299) | Minimum **`0`**, Maximum **`65535`** | The value is two ASCII characters packed into one 16-bit register, i.e. ≈ 16 000–19 000 (`A1` = 16689 … `IN` = 18766) — out of range under the default limits, so `Vc`/`Cac` never go true. |
 | **Error Code** (X293) | Minimum **`0`**, Maximum **`4294967295`** | X293/X294 is a **32-bit error bitfield**, not a fault number: bit *N* has the mask `2**(N-1)`. So bit 14 alone is already 8192, bit 15 is 16384 — past the stock ±10000 ceiling — and a bit 22 fault is **2 097 152**, 200× over it. Under the default limits the input silently stops showing real faults: every fault from bit 15 up is out of range, so the fault display reads clean while the charger is in error. |
 
@@ -316,9 +446,25 @@ In Loxone Config: select the input in the periphery tree → **Properties** →
 
 - Ships with the Modbus server **IP blank** and the document **APPKEY cleared** —
   set your own on import.
+- **The charger must be in external-control mode** before any `X301` write
+  (setpoint or pause) sticks; as shipped, the CHARX internal load management
+  overwrites it within seconds. Reads work either way. See
+  [Who controls the current](#who-controls-the-current-internal-load-management-vs-loxone).
 - **Nothing here writes charging release.** The projects and templates only write
   `X301` (current cap) and `X306`/`X307` (watchdog); release stays with OCPP.
   See [Why X300 / X303 are not written](#why-x300--x303-are-not-written).
+- **A 0 kW request from the Wallbox block pauses the car** (`X301 = 0`); any
+  request above 0 kW resumes it at 6–80 A. `X301 = 0` is the only zero this
+  project writes. See
+  [Pause semantics](#pause-semantics-what-a-0-kw-request-does) for the caveats
+  (sleeping EVs, the watchdog resuming at 6 A, firmware 1.9.1 with ISO 15118).
+- **No charging mode selected, or *Mode after unplugging vehicle* = Off, is
+  the #1 reason a car will not charge**: the block then asks for 0 kW and the
+  car is paused until someone picks a mode. Select a mode in the app and set
+  that parameter to a charging mode (Install step 6).
+- `X301` is **re-sent every 60 s**, so a setpoint that the charger drops is
+  re-asserted within a minute (whether a 0 is re-sent too is unconfirmed; the
+  pause is written on change either way).
 - Template users: do the three manual range fixes above, otherwise the energy
   counter, the vehicle-status derived `Vc`/`Cac` signals and the error-code
   display will not work.

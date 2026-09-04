@@ -6,6 +6,68 @@ All notable changes to this project are documented here. The format follows
 This repository has never been tagged with a version number, so entries are
 dated instead of numbered.
 
+## 2026-09-04
+
+### Fixed
+
+- **A pause from the Wallbox block is now a real pause.** Since 2026-09-03 the
+  setpoint formulas clamped every request to a 6 A floor, so when the block set
+  its target power to 0 — session paused, load shedding, block *Off*, no mode
+  allowing charging — the car kept charging at 6 A. Both formulas now pass a
+  0 kW request through as **`X301 = 0`**, which on a CHARX withdraws the
+  charging release and pauses the car; any request above 0 kW behaves as
+  before (converted, truncated, clamped to 6–80 A, never above the block's
+  budget). The pause does not touch OCPP: the session stays authorised and
+  recorded, the cap is simply zero. Read the README section
+  [*Pause semantics*](README.md#pause-semantics-what-a-0-kw-request-does)
+  before relying on it — some EVs sleep through a long pause and need an
+  unplug/replug, a dead Miniserver resumes the car at 6 A via the watchdog, and
+  CHARX firmware **1.9.1** has a known issue with sub-6 A setpoints during an
+  ISO 15118 session.
+  `3 fase`: `IF(I1>0;MIN(MAX(INT((I1*1000)/(400*1,732));6);80);0)` —
+  `mono`: `IF(I1>0;IF(I2>100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6);0)`.
+- **The `X301` setpoint is re-sent every 60 s instead of every hour**
+  (`RepeatRate` 3600 → 60 on the *Max Charging Rate I* actuator, in both
+  projects and both templates). Some CHARX firmware has been seen to drop an
+  externally written `X301` back to 0 after a controller-side restart or a
+  stray write; a client that re-sends its setpoint restores it within one
+  `RepeatRate` interval, one that writes once an hour leaves the car at 0 for
+  up to an hour.
+- `tools/fix-loxone-project.py` applies and verifies both: the pause-aware
+  formulas (F11) and the 60 s `RepeatRate` on X301 (F12).
+
+### Changed
+
+- **The README now states a requirement that was missing: the charger must be
+  in external-control mode** for anything Loxone writes to `X301` to take
+  effect. As shipped, a Veton charger's own CHARX load management is active and
+  rewrites `X301` on every cycle, so reads work but every write — the pause
+  included — is overwritten within seconds. Detaching the charging points from
+  the CHARX load circuit is done by Veton (app or backend), not from Loxone.
+  Once it is done the X306/X307 watchdog is the only protection left when the
+  Miniserver stops, and no second energy manager (Veton solar/smart modes, a
+  second EMS) may run on the same charger at the same time. See
+  [*Who controls the current*](README.md#who-controls-the-current-internal-load-management-vs-loxone).
+- **The README now requires a charging mode to be set.** Since a 0 kW request
+  is a real pause, a Wallbox block with **no charging mode selected**, or with
+  *Mode after unplugging vehicle* left at *Off*, asks for 0 kW and keeps the
+  car paused — a fresh import in external-control mode writes `X301 = 0` and
+  the car never starts, and the same happens after anything the block treats
+  as an unplug (including the charger being unreachable for a while: `Vc`
+  drops, the session ends, the block falls to its mode-after-unplug). The
+  README adds an Install step (select a mode in the app; set *Mode after
+  unplugging vehicle* to a charging mode, e.g. *Max. charging power*) and lists
+  this as the #1 reason a car will not charge. It also notes that the block's
+  `allow` input ships inverted and unwired (unconnected = charging allowed).
+- The README's explanation of `RepeatRate` no longer claims Loxone only
+  re-sends values greater than 0 — that condition belongs to *virtual*
+  outputs. It now quotes Loxone Config 17's help text for the Modbus output
+  repeat property ("Interval in seconds, at which the output value is sent
+  again") and says plainly that whether a value of 0 is also re-sent has not
+  been confirmed on a Miniserver. Either way the pause is written once on
+  change, which is what pauses the car; the 60 s re-send matters for the
+  non-zero setpoints.
+
 ## 2026-09-03
 
 The first entry in this changelog — it covers everything that changed since the
@@ -28,10 +90,9 @@ project was first published, not just one day's work.
 - **The energy counter stopped reporting past 10 000 kWh.** *Counter Active
   Energy* (X250) is a **lifetime** kWh total, but the input kept Loxone's
   default validity range of ±10000. Anything outside that range is discarded,
-  so the counter simply went quiet once the charger passed 10 MWh. A Veton
-  charger on the bench already reads over **12 000 kWh** — this was breaking
-  chargers in the field today, not at some point in the future. The range is
-  now 0 … 100 000 000.
+  so the counter simply went quiet once the charger passed 10 MWh. The charger
+  on the bench already reads over **12 000 kWh**, so the old ceiling is not a
+  distant-future problem. The range is now 0 … 100 000 000.
 - **The fault display showed a wrong number while the charger was in a fault.**
   X293 is a **32-bit error bitfield** (bit *N* = 2^(N-1)), not a fault number,
   so a single bit from 15 upward is already past the same ±10000 default — and
@@ -46,7 +107,8 @@ project was first published, not just one day's work.
 - **The setpoint could be written as 0 A, which withdraws the charging
   release** on a CHARX — the car stops instead of dropping to a low current.
   Both formulas now clamp to the documented **6–80 A** range, so a 0 kW request
-  from the Wallbox block lands on the 6 A minimum.
+  from the Wallbox block lands on the 6 A minimum (superseded on 2026-09-04:
+  0 kW now pauses, see above).
 - **The setpoint now truncates instead of rounding.** X301 is a whole-ampere
   register; rounding up asked the charger for more than the Wallbox block had
   budgeted (7.4 kW → 10.68 A → 11 A ≈ 7.62 kW, real current on a real fuse).
@@ -147,8 +209,12 @@ silently wrong:
 2. **The setpoint wiring.** Open the Program page and confirm that only **one**
    formula block is connected to *Max Charging Rate I* — `3 fase` on a
    three-phase supply, `mono` on a single-phase one, never both. While you are
-   there, check that the formula clamps and truncates:
-   `MIN(MAX(INT((I1*1000)/(400*1,732));6);80)`.
+   there, check that the formula pauses on 0, clamps and truncates:
+   `IF(I1>0;MIN(MAX(INT((I1*1000)/(400*1,732));6);80);0)`
+   (single-phase: `IF(I1>0;IF(I2>100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6);0)`),
+   and that the *Max Charging Rate I* actuator's `RepeatRate` is **60**, not
+   3600. A copy from 2026-09-03 has the clamp but not the pause: a 0 kW
+   request from the Wallbox block lands on 6 A instead of pausing the car.
 3. **X300 / X303 never worked.** If your copy still has *Charging Release* or
    *Locking* actuators, they were sending FC05 write-coil requests that the
    CHARX rejected — nothing you observed was caused by them, and nothing breaks
@@ -166,10 +232,28 @@ Being explicit, because none of the above has been through a Miniserver:
 - **Verified against a real Veton charger** (read-only Modbus): the register
   semantics used here, and the 12 182 kWh lifetime energy reading that showed
   the old 10 000 kWh ceiling was already being exceeded.
-- **Verified offline**: a full simulation of both projects — block wiring,
-  Modbus decoding, value corrections, validity ranges and the setpoint
-  formulas — plus strict XML validation of all four shipped files.
+- **Taken from Veton's own charger software and earlier measurements, not
+  re-tested here**: that the CHARX internal load management overwrites an
+  external `X301` write within seconds while it is active, that `X301 = 0`
+  withdraws the charging release (Veton's own agent pauses cars exactly this
+  way), and that some firmware has been seen to drop an externally written
+  `X301` back to 0 after a controller-side restart or a stray write — the
+  reason `X301` is now re-sent every 60 s. No Modbus write was issued from
+  this repository to any charger.
+- **Verified offline** (2026-09-04): only the static half of
+  `tools/simulate-project.py` ran (`--no-sim`): block wiring and the formula
+  sweep, including the 0 kW → 0 A pause path — plus strict XML validation of
+  all four shipped files. The live-register replay (Modbus decoding, value
+  corrections, validity ranges against real register data) needs `pymodbus`,
+  which was not available, so it did not run this time.
 - **Not verified**: neither project has been opened in Loxone Config or loaded
-  onto a Miniserver. Loxone Config is the only thing that can truly validate
-  these files, and it does not run on the machine they were prepared on. Treat
-  the first import as the real test, and please report what you find.
+  onto a Miniserver — still true on 2026-09-04. The pause path (target power
+  0 → formula → 0 A on the wire, and the 60 s re-send) has only been evaluated
+  offline; it has not been observed end to end. Whether a Modbus output with a
+  value of **0** is re-sent at `RepeatRate` at all is unconfirmed (Loxone's help
+  only says the value is sent again at the interval). A Formula block with no
+  wired inputs is **assumed** to emit its constant — that is what feeds
+  X306/X307 in the projects. Loxone Config is the only thing that can truly
+  validate these files, and it does not run on the machine they were prepared
+  on. Treat the first import as the real test, and please report what you
+  find.

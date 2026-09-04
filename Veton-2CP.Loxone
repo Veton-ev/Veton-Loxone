@@ -929,7 +929,7 @@
 							</C>
 						</C>
 						<C Type="ActorCaption" V="172" U="1f77dbb1-03db-549d-ffff721cca2b7737" Title="Actuators" WF="16384">
-							<C Type="ModbusAActor" Desc="Set the max amount of amps that the car is able to use" IName="AMQ12" V="172" U="1f77dbb2-0006-54cc-ffff721cca2b7737" Title="CP1 Max Charging Rate I" Nio="1" WF="16400" Channel="1" SourceValHigh="100" DestValHigh="100" DimmType="3" ModbusAddress="1301" ModbusCmd="6" ModbusCoilQuantity="1" RepeatRate="3600">
+							<C Type="ModbusAActor" Desc="Set the max amount of amps that the car is able to use; 0 = pause (charging release withdrawn); re-sent every 60 s by RepeatRate" IName="AMQ12" V="172" U="1f77dbb2-0006-54cc-ffff721cca2b7737" Title="CP1 Max Charging Rate I" Nio="1" WF="16400" Channel="1" SourceValHigh="100" DestValHigh="100" DimmType="3" ModbusAddress="1301" ModbusCmd="6" ModbusCoilQuantity="1" RepeatRate="60">
 								<Co K="I" Nc="1" U="1f77dbb2-0006-54cb-00ffb08685efacf6">
 									<In Input="1f77de91-020f-8326-01ffc3db490ffe1c"/>
 								</Co>
@@ -950,7 +950,7 @@
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737"/>
 								<Display Unit="&lt;v&gt; s" StateOnly="true"/>
 							</C>
-							<C Type="ModbusAActor" Desc="Set the max amount of amps that the car is able to use" IName="AMQ52" V="172" U="1f77ec01-0200-0024-ffff721cca2b7737" Title="CP2 Max Charging Rate I" Nio="1" WF="16400" Channel="1" SourceValHigh="100" DestValHigh="100" DimmType="3" ModbusAddress="2301" ModbusCmd="6" ModbusCoilQuantity="1" RepeatRate="3600">
+							<C Type="ModbusAActor" Desc="Set the max amount of amps that the car is able to use; 0 = pause (charging release withdrawn); re-sent every 60 s by RepeatRate" IName="AMQ52" V="172" U="1f77ec01-0200-0024-ffff721cca2b7737" Title="CP2 Max Charging Rate I" Nio="1" WF="16400" Channel="1" SourceValHigh="100" DestValHigh="100" DimmType="3" ModbusAddress="2301" ModbusCmd="6" ModbusCoilQuantity="1" RepeatRate="60">
 								<Co K="I" Nc="1" U="1f77ec01-0200-0025-00ffb08685efacf6">
 									<In Input="1f77ec01-0200-00a7-01ffc3db490ffe1c"/>
 								</Co>
@@ -1560,7 +1560,7 @@
 					<statGrp id="1" m="10"/>
 					<statGrp id="2" m="11" acc="true"/>
 				</C>
-				<C Type="Formula" V="172" U="1f77de99-02b8-86e1-ffff721cca2b7737" Title="CP1 mono" Px="7296" Py="4320" Px2="8640" Py2="5208" Cl="105,195,80" Nio="6" Formula="IF(I2&gt;100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6)">
+				<C Type="Formula" V="172" U="1f77de99-02b8-86e1-ffff721cca2b7737" Title="CP1 mono" Px="7296" Py="4320" Px2="8640" Py2="5208" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;0;IF(I2&gt;100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6);0)">
 					<Co K="Input1" Nc="1" U="1f77de99-02b8-86db-00ff19fa2dbc87f2">
 						<In Input="1f77de1c-0394-6571-24ff382d3f6a35a1" CF="true"/>
 					</Co>
@@ -1572,7 +1572,7 @@
 					<Co K="AQ" U="1f77de99-02b8-86df-04ff19fa2dbc87f2"/>
 					<Co K="TQ" U="1f77de99-02b8-86e0-05ff19fa2dbc87f2"/>
 				</C>
-				<C Type="Formula" V="172" U="1f77df11-037f-b336-fffffcc3eaf48635" Title="CP1 3 fase" Px="7296" Py="5280" Px2="8640" Py2="5976" Cl="105,195,80" Nio="6" Formula="MIN(MAX(INT((I1*1000)/(400*1,732));6);80)">
+				<C Type="Formula" V="172" U="1f77df11-037f-b336-fffffcc3eaf48635" Title="CP1 3 fase" Px="7296" Py="5280" Px2="8640" Py2="5976" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;0;MIN(MAX(INT((I1*1000)/(400*1,732));6);80);0)">
 					<Co K="Input1" Nc="1" U="1f77df11-037f-b337-fffffcc3eaf48635">
 						<In Input="1f77de1c-0394-6571-24ff382d3f6a35a1" CF="true"/>
 					</Co>
@@ -1810,7 +1810,7 @@ active" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0
 					<statGrp id="1" m="10"/>
 					<statGrp id="2" m="11" acc="true"/>
 				</C>
-				<C Type="Formula" V="172" U="1f77ec01-0200-007b-ffff721cca2b7737" Title="CP2 mono" Px="7296" Py="14320" Px2="8640" Py2="15208" Cl="105,195,80" Nio="6" Formula="IF(I2&gt;100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6)">
+				<C Type="Formula" V="172" U="1f77ec01-0200-007b-ffff721cca2b7737" Title="CP2 mono" Px="7296" Py="14320" Px2="8640" Py2="15208" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;0;IF(I2&gt;100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6);0)">
 					<Co K="Input1" Nc="1" U="1f77ec01-0200-007c-00ff19fa2dbc87f2">
 						<In Input="1f77ec01-0200-0068-24ff382d3f6a35a1" CF="true"/>
 					</Co>
@@ -1822,7 +1822,7 @@ active" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0
 					<Co K="AQ" U="1f77ec01-0200-0080-04ff19fa2dbc87f2"/>
 					<Co K="TQ" U="1f77ec01-0200-0081-05ff19fa2dbc87f2"/>
 				</C>
-				<C Type="Formula" V="172" U="1f77ec01-0200-0082-fffffcc3eaf48635" Title="CP2 3 fase" Px="7296" Py="15280" Px2="8640" Py2="15976" Cl="105,195,80" Nio="6" Formula="MIN(MAX(INT((I1*1000)/(400*1,732));6);80)">
+				<C Type="Formula" V="172" U="1f77ec01-0200-0082-fffffcc3eaf48635" Title="CP2 3 fase" Px="7296" Py="15280" Px2="8640" Py2="15976" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;0;MIN(MAX(INT((I1*1000)/(400*1,732));6);80);0)">
 					<Co K="Input1" Nc="1" U="1f77ec01-0200-0083-fffffcc3eaf48635">
 						<In Input="1f77ec01-0200-0068-24ff382d3f6a35a1" CF="true"/>
 					</Co>

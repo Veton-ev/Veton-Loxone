@@ -857,7 +857,7 @@
 							</C>
 						</C>
 						<C Type="ActorCaption" V="172" U="1f77dbb1-03db-549d-ffff721cca2b7737" Title="Actuators" WF="16384">
-							<C Type="ModbusAActor" Desc="Set the max amount of amps that the car is able to use" IName="AMQ12" V="172" U="1f77dbb2-0006-54cc-ffff721cca2b7737" Title="Max Charging Rate I" Nio="1" WF="16400" Channel="1" SourceValHigh="100" DestValHigh="100" DimmType="3" ModbusAddress="1301" ModbusCmd="6" ModbusCoilQuantity="1" RepeatRate="3600">
+							<C Type="ModbusAActor" Desc="Set the max amount of amps that the car is able to use; 0 = pause (charging release withdrawn); re-sent every 60 s by RepeatRate" IName="AMQ12" V="172" U="1f77dbb2-0006-54cc-ffff721cca2b7737" Title="Max Charging Rate I" Nio="1" WF="16400" Channel="1" SourceValHigh="100" DestValHigh="100" DimmType="3" ModbusAddress="1301" ModbusCmd="6" ModbusCoilQuantity="1" RepeatRate="60">
 								<Co K="I" Nc="1" U="1f77dbb2-0006-54cb-00ffb08685efacf6">
 									<In Input="1f77de91-020f-8326-01ffc3db490ffe1c"/>
 								</Co>
@@ -1464,7 +1464,7 @@
 					<statGrp id="1" m="10"/>
 					<statGrp id="2" m="11" acc="true"/>
 				</C>
-				<C Type="Formula" V="172" U="1f77de99-02b8-86e1-ffff721cca2b7737" Title="mono" Px="7296" Py="4320" Px2="8640" Py2="5208" Cl="105,195,80" Nio="6" Formula="IF(I2&gt;100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6)">
+				<C Type="Formula" V="172" U="1f77de99-02b8-86e1-ffff721cca2b7737" Title="mono" Px="7296" Py="4320" Px2="8640" Py2="5208" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;0;IF(I2&gt;100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6);0)">
 					<Co K="Input1" Nc="1" U="1f77de99-02b8-86db-00ff19fa2dbc87f2">
 						<In Input="1f77de1c-0394-6571-24ff382d3f6a35a1" CF="true"/>
 					</Co>
@@ -1476,7 +1476,7 @@
 					<Co K="AQ" U="1f77de99-02b8-86df-04ff19fa2dbc87f2"/>
 					<Co K="TQ" U="1f77de99-02b8-86e0-05ff19fa2dbc87f2"/>
 				</C>
-				<C Type="Formula" V="172" U="1f77df11-037f-b336-fffffcc3eaf48635" Title="3 fase" Px="7296" Py="5280" Px2="8640" Py2="5976" Cl="105,195,80" Nio="6" Formula="MIN(MAX(INT((I1*1000)/(400*1,732));6);80)">
+				<C Type="Formula" V="172" U="1f77df11-037f-b336-fffffcc3eaf48635" Title="3 fase" Px="7296" Py="5280" Px2="8640" Py2="5976" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;0;MIN(MAX(INT((I1*1000)/(400*1,732));6);80);0)">
 					<Co K="Input1" Nc="1" U="1f77df11-037f-b337-fffffcc3eaf48635">
 						<In Input="1f77de1c-0394-6571-24ff382d3f6a35a1" CF="true"/>
 					</Co>
