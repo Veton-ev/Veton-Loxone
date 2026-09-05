@@ -779,101 +779,194 @@
 						<IoData Cr="1f77db81-02f8-3e4b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="2"/>
 						<Display Unit="&lt;v&gt;" StateOnly="true" IxText="8"/>
 					</C>
-					<C Type="ModbusDev" V="172" U="1f77dbb1-03cb-5499-ffff721cca2b7737" Title="Veton - Charger 1" Nio="1" WF="16384" Channel="1" NumHeatCircuits="1" NumHeatBoilers="1" NumHeatBuffers="1">
+					<C Type="ModbusDev" V="172" U="1f77dbb1-03cb-5499-ffff721cca2b7737" Title="Veton - Charger" Nio="1" WF="16384" Channel="1" NumHeatCircuits="1" NumHeatBoilers="1" NumHeatBuffers="1">
 						<Co K="AQ" U="1f77dbb1-03cb-5498-00ffb08685efacf6"/>
 						<IoData Pr="1f77db81-02e8-3d93-ffff721cca2b7737"/>
 						<C Type="SensorCaption" V="172" U="1f77dbb1-03db-549b-ffff721cca2b7737" Title="Sensors" WF="16384">
-							<C Type="ModbusASensor" IName="AMQ1" V="172" U="1f77dbb1-03db-54a1-ffff721cca2b7737" Title="Counter Active Energy" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="1250" ModbusDataType="102" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="0" MaxVal="100000000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+							<C Type="ModbusASensor" IName="AMQ1" V="172" U="1f77dbb1-03db-54a1-ffff721cca2b7737" Title="CP1 Counter Active Energy" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="1250" ModbusDataType="102" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="0" MaxVal="100000000" MinChange="0.25" MinTime="1000" MaxTime="300000">
 								<Co K="Q" U="1f77dbb1-03db-549f-00ffb08685efacf6"/>
 								<Co K="Qe" U="1f77dbb1-03db-54a0-01ffb08685efacf6"/>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
 								<Display Type="2" Unit="&lt;v.3&gt; kWh" StateOnly="true"/>
 							</C>
-							<C Type="ModbusASensor" IName="AMQ2" V="172" U="1f77dbb2-0004-54a5-ffff721cca2b7737" Title="Active Power" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="1244" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="5" SourceValHigh="1000000" DestValHigh="1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="25000">
+							<C Type="ModbusASensor" IName="AMQ2" V="172" U="1f77dbb2-0004-54a5-ffff721cca2b7737" Title="CP1 Active Power" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="1244" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="5" SourceValHigh="1000000" DestValHigh="1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="25000">
 								<Co K="Q" U="1f77dbb2-0004-54a3-00ffb08685efacf6"/>
 								<Co K="Qe" U="1f77dbb2-0004-54a4-01ffb08685efacf6"/>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
 								<Display Type="2" Unit="&lt;v.3&gt; kW" StateOnly="true"/>
 							</C>
-							<C Type="ModbusASensor" IName="AMQ3" V="172" U="1f77dbb2-0004-54a9-ffff721cca2b7737" Title="Charging release mode" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="1120" ModbusCmd="3" ModbusPollingCycle="60" SourceValHigh="100" DestValHigh="100" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+							<C Type="ModbusASensor" IName="AMQ3" V="172" U="1f77dbb2-0004-54a9-ffff721cca2b7737" Title="CP1 Charging release mode" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="1120" ModbusCmd="3" ModbusPollingCycle="60" SourceValHigh="100" DestValHigh="100" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
 								<Co K="Q" U="1f77dbb2-0004-54a7-00ffb08685efacf6"/>
 								<Co K="Qe" U="1f77dbb2-0004-54a8-01ffb08685efacf6"/>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
 								<Display Type="2" Unit="&lt;v&gt;" StateOnly="true"/>
 							</C>
-							<C Type="ModbusASensor" IName="AMQ4" V="172" U="1f77dbb2-0004-54ad-ffff721cca2b7737" Title="Voltage of phase L1" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="1232" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+							<C Type="ModbusASensor" IName="AMQ4" V="172" U="1f77dbb2-0004-54ad-ffff721cca2b7737" Title="CP1 Voltage of phase L1" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="1232" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
 								<Co K="Q" U="1f77dbb2-0004-54ab-00ffb08685efacf6"/>
 								<Co K="Qe" U="1f77dbb2-0004-54ac-01ffb08685efacf6"/>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
 								<Display Type="2" Unit="&lt;v.2&gt; V" StateOnly="true"/>
 							</C>
-							<C Type="ModbusASensor" IName="AMQ5" V="172" U="1f77dbb2-0004-54b1-ffff721cca2b7737" Title="Voltage of phase L2" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="1234" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+							<C Type="ModbusASensor" IName="AMQ5" V="172" U="1f77dbb2-0004-54b1-ffff721cca2b7737" Title="CP1 Voltage of phase L2" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="1234" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
 								<Co K="Q" U="1f77dbb2-0004-54af-00ffb08685efacf6"/>
 								<Co K="Qe" U="1f77dbb2-0004-54b0-01ffb08685efacf6"/>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
 								<Display Type="2" Unit="&lt;v.2&gt; V" StateOnly="true"/>
 							</C>
-							<C Type="ModbusASensor" IName="AMQ6" V="172" U="1f77dbb2-0004-54b5-ffff721cca2b7737" Title="Voltage of phase L3" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="1236" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+							<C Type="ModbusASensor" IName="AMQ6" V="172" U="1f77dbb2-0004-54b5-ffff721cca2b7737" Title="CP1 Voltage of phase L3" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="1236" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
 								<Co K="Q" U="1f77dbb2-0004-54b3-00ffb08685efacf6"/>
 								<Co K="Qe" U="1f77dbb2-0004-54b4-01ffb08685efacf6"/>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
 								<Display Type="2" Unit="&lt;v.2&gt; V" StateOnly="true"/>
 							</C>
-							<C Type="ModbusASensor" IName="AMQ7" V="172" U="1f77dbb2-0004-54b9-ffff721cca2b7737" Title="Current of phase L1" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="1238" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+							<C Type="ModbusASensor" IName="AMQ7" V="172" U="1f77dbb2-0004-54b9-ffff721cca2b7737" Title="CP1 Current of phase L1" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="1238" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
 								<Co K="Q" U="1f77dbb2-0004-54b7-00ffb08685efacf6"/>
 								<Co K="Qe" U="1f77dbb2-0004-54b8-01ffb08685efacf6"/>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
 								<Display Type="2" Unit="&lt;v.3&gt; A" StateOnly="true"/>
 							</C>
-							<C Type="ModbusASensor" IName="AMQ8" V="172" U="1f77dbb2-0004-54bd-ffff721cca2b7737" Title="Current of phase L2" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="1240" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+							<C Type="ModbusASensor" IName="AMQ8" V="172" U="1f77dbb2-0004-54bd-ffff721cca2b7737" Title="CP1 Current of phase L2" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="1240" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
 								<Co K="Q" U="1f77dbb2-0004-54bb-00ffb08685efacf6"/>
 								<Co K="Qe" U="1f77dbb2-0004-54bc-01ffb08685efacf6"/>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
 								<Display Type="2" Unit="&lt;v.3&gt; A" StateOnly="true"/>
 							</C>
-							<C Type="ModbusASensor" IName="AMQ9" V="172" U="1f77dbb2-0004-54c1-ffff721cca2b7737" Title="Current of phase L3" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="1242" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+							<C Type="ModbusASensor" IName="AMQ9" V="172" U="1f77dbb2-0004-54c1-ffff721cca2b7737" Title="CP1 Current of phase L3" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="1242" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
 								<Co K="Q" U="1f77dbb2-0004-54bf-00ffb08685efacf6"/>
 								<Co K="Qe" U="1f77dbb2-0004-54c0-01ffb08685efacf6"/>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
 								<Display Type="2" Unit="&lt;v.3&gt; A" StateOnly="true"/>
 							</C>
-							<C Type="ModbusASensor" IName="AMQ10" V="172" U="1f77dbb2-0004-54c5-ffff721cca2b7737" Title="Error Code" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="1293" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValHigh="100" DestValHigh="100" MinVal="0" MaxVal="4294967295" MinChange="0.25" MinTime="1000" MaxTime="300000">
+							<C Type="ModbusASensor" IName="AMQ10" V="172" U="1f77dbb2-0004-54c5-ffff721cca2b7737" Title="CP1 Error Code" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="1293" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValHigh="100" DestValHigh="100" MinVal="0" MaxVal="4294967295" MinChange="0.25" MinTime="1000" MaxTime="300000">
 								<Co K="Q" U="1f77dbb2-0004-54c3-00ffb08685efacf6"/>
 								<Co K="Qe" U="1f77dbb2-0004-54c4-01ffb08685efacf6"/>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
 								<Display Type="2" Unit="&lt;v&gt;" StateOnly="true"/>
 							</C>
-							<C Type="ModbusASensor" IName="AMQ11" V="172" U="1f77dbb2-0004-54c9-ffff721cca2b7737" Title="SOC" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="1264" ModbusCmd="3" ModbusPollingCycle="60" SourceValHigh="100" DestValHigh="100" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+							<C Type="ModbusASensor" IName="AMQ11" V="172" U="1f77dbb2-0004-54c9-ffff721cca2b7737" Title="CP1 SOC" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="1264" ModbusCmd="3" ModbusPollingCycle="60" SourceValHigh="100" DestValHigh="100" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
 								<Co K="Q" U="1f77dbb2-0004-54c7-00ffb08685efacf6"/>
 								<Co K="Qe" U="1f77dbb2-0004-54c8-01ffb08685efacf6"/>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
 								<Display Type="2" Unit="&lt;v&gt;%" StateOnly="true"/>
 							</C>
-							<C Type="ModbusASensor" IName="AMQ35" V="172" U="1f77e480-01cc-f338-ffff721cca2b7737" Title="Vehicle status" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="1299" ModbusCmd="3" ModbusPollingCycle="5" SourceValHigh="10" DestValHigh="10" MinVal="0" MaxVal="65535" MinChange="0.25" MinTime="1000" MaxTime="1500000">
+							<C Type="ModbusASensor" IName="AMQ35" V="172" U="1f77e480-01cc-f338-ffff721cca2b7737" Title="CP1 Vehicle status" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="1299" ModbusCmd="3" ModbusPollingCycle="5" SourceValHigh="10" DestValHigh="10" MinVal="0" MaxVal="65535" MinChange="0.25" MinTime="1000" MaxTime="1500000">
 								<Co K="Q" U="1f77e480-01cc-f336-00ff5c94323c6157"/>
 								<Co K="Qe" U="1f77e480-01cc-f337-01ff5c94323c6157"/>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
 								<Display Type="2" Unit="&lt;v.1&gt;" StateOnly="true"/>
 							</C>
+							<C Type="ModbusASensor" IName="AMQ40" V="172" U="1f77ec01-0200-0000-ffff721cca2b7737" Title="CP2 Counter Active Energy" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="2250" ModbusDataType="102" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="0" MaxVal="100000000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+								<Co K="Q" U="1f77ec01-0200-0001-00ffb08685efacf6"/>
+								<Co K="Qe" U="1f77ec01-0200-0002-01ffb08685efacf6"/>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
+								<Display Type="2" Unit="&lt;v.3&gt; kWh" StateOnly="true"/>
+							</C>
+							<C Type="ModbusASensor" IName="AMQ41" V="172" U="1f77ec01-0200-0003-ffff721cca2b7737" Title="CP2 Active Power" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="2244" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="5" SourceValHigh="1000000" DestValHigh="1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="25000">
+								<Co K="Q" U="1f77ec01-0200-0004-00ffb08685efacf6"/>
+								<Co K="Qe" U="1f77ec01-0200-0005-01ffb08685efacf6"/>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
+								<Display Type="2" Unit="&lt;v.3&gt; kW" StateOnly="true"/>
+							</C>
+							<C Type="ModbusASensor" IName="AMQ42" V="172" U="1f77ec01-0200-0006-ffff721cca2b7737" Title="CP2 Charging release mode" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="2120" ModbusCmd="3" ModbusPollingCycle="60" SourceValHigh="100" DestValHigh="100" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+								<Co K="Q" U="1f77ec01-0200-0007-00ffb08685efacf6"/>
+								<Co K="Qe" U="1f77ec01-0200-0008-01ffb08685efacf6"/>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
+								<Display Type="2" Unit="&lt;v&gt;" StateOnly="true"/>
+							</C>
+							<C Type="ModbusASensor" IName="AMQ43" V="172" U="1f77ec01-0200-0009-ffff721cca2b7737" Title="CP2 Voltage of phase L1" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="2232" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+								<Co K="Q" U="1f77ec01-0200-000a-00ffb08685efacf6"/>
+								<Co K="Qe" U="1f77ec01-0200-000b-01ffb08685efacf6"/>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
+								<Display Type="2" Unit="&lt;v.2&gt; V" StateOnly="true"/>
+							</C>
+							<C Type="ModbusASensor" IName="AMQ44" V="172" U="1f77ec01-0200-000c-ffff721cca2b7737" Title="CP2 Voltage of phase L2" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="2234" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+								<Co K="Q" U="1f77ec01-0200-000d-00ffb08685efacf6"/>
+								<Co K="Qe" U="1f77ec01-0200-000e-01ffb08685efacf6"/>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
+								<Display Type="2" Unit="&lt;v.2&gt; V" StateOnly="true"/>
+							</C>
+							<C Type="ModbusASensor" IName="AMQ45" V="172" U="1f77ec01-0200-000f-ffff721cca2b7737" Title="CP2 Voltage of phase L3" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="2236" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+								<Co K="Q" U="1f77ec01-0200-0010-00ffb08685efacf6"/>
+								<Co K="Qe" U="1f77ec01-0200-0011-01ffb08685efacf6"/>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
+								<Display Type="2" Unit="&lt;v.2&gt; V" StateOnly="true"/>
+							</C>
+							<C Type="ModbusASensor" IName="AMQ46" V="172" U="1f77ec01-0200-0012-ffff721cca2b7737" Title="CP2 Current of phase L1" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="2238" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+								<Co K="Q" U="1f77ec01-0200-0013-00ffb08685efacf6"/>
+								<Co K="Qe" U="1f77ec01-0200-0014-01ffb08685efacf6"/>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
+								<Display Type="2" Unit="&lt;v.3&gt; A" StateOnly="true"/>
+							</C>
+							<C Type="ModbusASensor" IName="AMQ47" V="172" U="1f77ec01-0200-0015-ffff721cca2b7737" Title="CP2 Current of phase L2" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="2240" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+								<Co K="Q" U="1f77ec01-0200-0016-00ffb08685efacf6"/>
+								<Co K="Qe" U="1f77ec01-0200-0017-01ffb08685efacf6"/>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
+								<Display Type="2" Unit="&lt;v.3&gt; A" StateOnly="true"/>
+							</C>
+							<C Type="ModbusASensor" IName="AMQ48" V="172" U="1f77ec01-0200-0018-ffff721cca2b7737" Title="CP2 Current of phase L3" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="2242" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+								<Co K="Q" U="1f77ec01-0200-0019-00ffb08685efacf6"/>
+								<Co K="Qe" U="1f77ec01-0200-001a-01ffb08685efacf6"/>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
+								<Display Type="2" Unit="&lt;v.3&gt; A" StateOnly="true"/>
+							</C>
+							<C Type="ModbusASensor" IName="AMQ49" V="172" U="1f77ec01-0200-001b-ffff721cca2b7737" Title="CP2 Error Code" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="2293" ModbusDataType="98" ModbusCmd="3" ModbusPollingCycle="60" SourceValHigh="100" DestValHigh="100" MinVal="0" MaxVal="4294967295" MinChange="0.25" MinTime="1000" MaxTime="300000">
+								<Co K="Q" U="1f77ec01-0200-001c-00ffb08685efacf6"/>
+								<Co K="Qe" U="1f77ec01-0200-001d-01ffb08685efacf6"/>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
+								<Display Type="2" Unit="&lt;v&gt;" StateOnly="true"/>
+							</C>
+							<C Type="ModbusASensor" IName="AMQ50" V="172" U="1f77ec01-0200-001e-ffff721cca2b7737" Title="CP2 SOC" Nio="2" WF="16384" ValOT="1" Analog="true" ModbusAddress="2264" ModbusCmd="3" ModbusPollingCycle="60" SourceValHigh="100" DestValHigh="100" MinVal="-10000" MaxVal="10000" MinChange="0.25" MinTime="1000" MaxTime="300000">
+								<Co K="Q" U="1f77ec01-0200-001f-00ffb08685efacf6"/>
+								<Co K="Qe" U="1f77ec01-0200-0020-01ffb08685efacf6"/>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
+								<Display Type="2" Unit="&lt;v&gt;%" StateOnly="true"/>
+							</C>
+							<C Type="ModbusASensor" IName="AMQ51" V="172" U="1f77ec01-0200-0021-ffff721cca2b7737" Title="CP2 Vehicle status" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="2299" ModbusCmd="3" ModbusPollingCycle="5" SourceValHigh="10" DestValHigh="10" MinVal="0" MaxVal="65535" MinChange="0.25" MinTime="1000" MaxTime="1500000">
+								<Co K="Q" U="1f77ec01-0200-0022-00ff5c94323c6157"/>
+								<Co K="Qe" U="1f77ec01-0200-0023-01ff5c94323c6157"/>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
+								<Display Type="2" Unit="&lt;v.1&gt;" StateOnly="true"/>
+							</C>
 						</C>
 						<C Type="ActorCaption" V="172" U="1f77dbb1-03db-549d-ffff721cca2b7737" Title="Actuators" WF="16384">
-							<C Type="ModbusAActor" Desc="Set the max amount of amps that the car is able to use; 0 = pause (charging release withdrawn); re-sent every 60 s by RepeatRate" IName="AMQ12" V="172" U="1f77dbb2-0006-54cc-ffff721cca2b7737" Title="Max Charging Rate I" Nio="1" WF="16400" Channel="1" SourceValHigh="100" DestValHigh="100" DimmType="3" ModbusAddress="1301" ModbusCmd="6" ModbusCoilQuantity="1" RepeatRate="60">
+							<C Type="ModbusAActor" Desc="Set the max amount of amps that the car is able to use; 0 = pause (charging release withdrawn); re-sent every 60 s by RepeatRate" IName="AMQ12" V="172" U="1f77dbb2-0006-54cc-ffff721cca2b7737" Title="CP1 Max Charging Rate I" Nio="1" WF="16400" Channel="1" SourceValHigh="100" DestValHigh="100" DimmType="3" ModbusAddress="1301" ModbusCmd="6" ModbusCoilQuantity="1" RepeatRate="60">
 								<Co K="I" Nc="1" U="1f77dbb2-0006-54cb-00ffb08685efacf6">
 									<In Input="1f77de91-020f-8326-01ffc3db490ffe1c"/>
 								</Co>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737"/>
 								<Display Unit="&lt;v&gt; A" StateOnly="true"/>
 							</C>
-							<C Type="ModbusAActor" Desc="CHARX watchdog register X306 - re-sent every 3600 s by RepeatRate" IName="AMQ60" V="172" U="1f77ec02-0300-010a-ffff721cca2b7737" Title="Watchdog fallback current" Nio="1" WF="16400" Channel="1" SourceValHigh="100" DestValHigh="100" DimmType="3" ModbusAddress="1306" ModbusCmd="6" ModbusCoilQuantity="1" RepeatRate="3600">
+							<C Type="ModbusAActor" Desc="CHARX watchdog register X306 - re-sent every 3600 s by RepeatRate" IName="AMQ60" V="172" U="1f77ec02-0300-010a-ffff721cca2b7737" Title="CP1 Watchdog fallback current" Nio="1" WF="16400" Channel="1" SourceValHigh="100" DestValHigh="100" DimmType="3" ModbusAddress="1306" ModbusCmd="6" ModbusCoilQuantity="1" RepeatRate="3600">
 								<Co K="I" Nc="1" U="1f77ec02-0300-010b-00ffb08685efacf6">
 									<In Input="1f77ec02-0300-0109-01ffc3db490ffe1c"/>
 								</Co>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737"/>
 								<Display Unit="&lt;v&gt; A" StateOnly="true"/>
 							</C>
-							<C Type="ModbusAActor" Desc="CHARX watchdog register X307 - re-sent every 60 s by RepeatRate" IName="AMQ61" V="172" U="1f77ec02-0300-011a-ffff721cca2b7737" Title="Watchdog timer" Nio="1" WF="16400" Channel="1" SourceValHigh="100" DestValHigh="100" DimmType="3" ModbusAddress="1307" ModbusCmd="6" ModbusCoilQuantity="1" RepeatRate="60">
+							<C Type="ModbusAActor" Desc="CHARX watchdog register X307 - re-sent every 60 s by RepeatRate" IName="AMQ61" V="172" U="1f77ec02-0300-011a-ffff721cca2b7737" Title="CP1 Watchdog timer" Nio="1" WF="16400" Channel="1" SourceValHigh="100" DestValHigh="100" DimmType="3" ModbusAddress="1307" ModbusCmd="6" ModbusCoilQuantity="1" RepeatRate="60">
 								<Co K="I" Nc="1" U="1f77ec02-0300-011b-00ffb08685efacf6">
 									<In Input="1f77ec02-0300-0119-01ffc3db490ffe1c"/>
+								</Co>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737"/>
+								<Display Unit="&lt;v&gt; s" StateOnly="true"/>
+							</C>
+							<C Type="ModbusAActor" Desc="Set the max amount of amps that the car is able to use; 0 = pause (charging release withdrawn); re-sent every 60 s by RepeatRate" IName="AMQ52" V="172" U="1f77ec01-0200-0024-ffff721cca2b7737" Title="CP2 Max Charging Rate I" Nio="1" WF="16400" Channel="1" SourceValHigh="100" DestValHigh="100" DimmType="3" ModbusAddress="2301" ModbusCmd="6" ModbusCoilQuantity="1" RepeatRate="60">
+								<Co K="I" Nc="1" U="1f77ec01-0200-0025-00ffb08685efacf6">
+									<In Input="1f77ec01-0200-00a7-01ffc3db490ffe1c"/>
+								</Co>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737"/>
+								<Display Unit="&lt;v&gt; A" StateOnly="true"/>
+							</C>
+							<C Type="ModbusAActor" Desc="CHARX watchdog register X306 - re-sent every 3600 s by RepeatRate" IName="AMQ62" V="172" U="1f77ec02-0300-020a-ffff721cca2b7737" Title="CP2 Watchdog fallback current" Nio="1" WF="16400" Channel="1" SourceValHigh="100" DestValHigh="100" DimmType="3" ModbusAddress="2306" ModbusCmd="6" ModbusCoilQuantity="1" RepeatRate="3600">
+								<Co K="I" Nc="1" U="1f77ec02-0300-020b-00ffb08685efacf6">
+									<In Input="1f77ec02-0300-0209-01ffc3db490ffe1c"/>
+								</Co>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737"/>
+								<Display Unit="&lt;v&gt; A" StateOnly="true"/>
+							</C>
+							<C Type="ModbusAActor" Desc="CHARX watchdog register X307 - re-sent every 60 s by RepeatRate" IName="AMQ63" V="172" U="1f77ec02-0300-021a-ffff721cca2b7737" Title="CP2 Watchdog timer" Nio="1" WF="16400" Channel="1" SourceValHigh="100" DestValHigh="100" DimmType="3" ModbusAddress="2307" ModbusCmd="6" ModbusCoilQuantity="1" RepeatRate="60">
+								<Co K="I" Nc="1" U="1f77ec02-0300-021b-00ffb08685efacf6">
+									<In Input="1f77ec02-0300-0219-01ffc3db490ffe1c"/>
 								</Co>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737"/>
 								<Display Unit="&lt;v&gt; s" StateOnly="true"/>
@@ -1325,7 +1418,10 @@
 				<C Type="Tracker" V="172" U="1f77e8da-034b-3671-ffff721cca2b7737" Title="Tracker" WF="16384" Entries="10" Rem="false">
 					<IoData Visu="true" Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737"/>
 				</C>
-				<C Type="Tracker" V="172" U="1f77e8dc-02b6-39f2-ffff721cca2b7737" Title="Vehicle status" WF="16400" Entries="100" Rem="true">
+				<C Type="Tracker" V="172" U="1f77e8dc-02b6-39f2-ffff721cca2b7737" Title="CP1 Vehicle status" WF="16400" Entries="100" Rem="true">
+					<IoData Visu="true" Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737"/>
+				</C>
+				<C Type="Tracker" V="172" U="1f77ec01-0200-00a8-ffff721cca2b7737" Title="CP2 Vehicle status" WF="16400" Entries="100" Rem="true">
 					<IoData Visu="true" Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737"/>
 				</C>
 			</C>
@@ -1338,7 +1434,7 @@
 		<C Type="Program" V="172" U="1f77db83-02fa-40e3-ffff721cca2b7737" Title="Veton" Ref="1f77db83-02e6-3f22-ffff721cca2b7737" WF="16384">
 			<C Type="Page" V="172" U="1f77db83-02fa-40e5-ffff721cca2b7737" Title="Page" WF="16384">
 				<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737"/>
-				<C Type="InputRef" V="172" U="1f77de63-03d8-7292-ffff721cca2b7737" Title="Active Power" Px="4128" Py="2688" Px2="6240" Py2="2880" Cl="238,238,238" Nio="4" Ref="1f77dbb2-0004-54a5-ffff721cca2b7737" WF="133120" Analog="true" LinkRefType="153">
+				<C Type="InputRef" V="172" U="1f77de63-03d8-7292-ffff721cca2b7737" Title="CP1 Active Power" Px="4128" Py="2688" Px2="6240" Py2="2880" Cl="238,238,238" Nio="4" Ref="1f77dbb2-0004-54a5-ffff721cca2b7737" WF="133120" Analog="true" LinkRefType="153">
 					<Co K="AI" Nc="1" U="1f77de63-03d8-728e-00ff6bb11c56a958">
 						<In Input="1f77dbb2-0004-54a3-00ffb08685efacf6"/>
 					</Co>
@@ -1348,7 +1444,7 @@
 					<Co K="AQ" U="1f77de63-03d8-7290-02ff6bb11c56a958"/>
 					<Co K="Q" U="1f77de63-03d8-7291-03ff6bb11c56a958"/>
 				</C>
-				<C Type="InputRef" V="172" U="1f77de75-0286-7932-ffff721cca2b7737" Title="Counter Active Energy" Px="4128" Py="2880" Px2="6240" Py2="3072" Cl="238,238,238" Nio="4" Ref="1f77dbb1-03db-54a1-ffff721cca2b7737" WF="133120" Analog="true" LinkRefType="153">
+				<C Type="InputRef" V="172" U="1f77de75-0286-7932-ffff721cca2b7737" Title="CP1 Counter Active Energy" Px="4128" Py="2880" Px2="6240" Py2="3072" Cl="238,238,238" Nio="4" Ref="1f77dbb1-03db-54a1-ffff721cca2b7737" WF="133120" Analog="true" LinkRefType="153">
 					<Co K="AI" Nc="1" U="1f77de75-0286-792e-00ff913b3ea7c259">
 						<In Input="1f77dbb1-03db-549f-00ffb08685efacf6"/>
 					</Co>
@@ -1358,7 +1454,7 @@
 					<Co K="AQ" U="1f77de75-0286-7930-02ff913b3ea7c259"/>
 					<Co K="Q" U="1f77de75-0286-7931-03ff913b3ea7c259"/>
 				</C>
-				<C Type="InputRef" V="172" U="1f77dea4-00c8-8a48-ffff721cca2b7737" Title="Voltage of phase L1" Px="4224" Py="4800" Px2="6336" Py2="4992" Cl="238,238,238" Nio="4" Ref="1f77dbb2-0004-54ad-ffff721cca2b7737" WF="133120" Analog="true" LinkRefType="153">
+				<C Type="InputRef" V="172" U="1f77dea4-00c8-8a48-ffff721cca2b7737" Title="CP1 Voltage of phase L1" Px="4224" Py="4800" Px2="6336" Py2="4992" Cl="238,238,238" Nio="4" Ref="1f77dbb2-0004-54ad-ffff721cca2b7737" WF="133120" Analog="true" LinkRefType="153">
 					<Co K="AI" Nc="1" U="1f77dea4-00c8-8a44-00ff4465d7f08c71">
 						<In Input="1f77dbb2-0004-54ab-00ffb08685efacf6"/>
 					</Co>
@@ -1368,7 +1464,7 @@
 					<Co K="AQ" U="1f77dea4-00c8-8a46-02ff4465d7f08c71"/>
 					<Co K="Q" U="1f77dea4-00c8-8a47-03ff4465d7f08c71"/>
 				</C>
-				<C Type="InputRef" V="172" U="1f77ebb7-0137-52ea-ffff721cca2b7737" Title="Error Code" Px="4128" Py="7776" Px2="6240" Py2="7968" Cl="238,238,238" Nio="4" Ref="1f77dbb2-0004-54c5-ffff721cca2b7737" WF="131072" Analog="true" LinkRefType="153">
+				<C Type="InputRef" V="172" U="1f77ebb7-0137-52ea-ffff721cca2b7737" Title="CP1 Error Code" Px="4128" Py="7776" Px2="6240" Py2="7968" Cl="238,238,238" Nio="4" Ref="1f77dbb2-0004-54c5-ffff721cca2b7737" WF="131072" Analog="true" LinkRefType="153">
 					<Co K="AI" Nc="1" U="1f77ebb7-0137-52e6-00ffcbec6b3b1325">
 						<In Input="1f77dbb2-0004-54c3-00ffb08685efacf6"/>
 					</Co>
@@ -1378,7 +1474,7 @@
 					<Co K="AQ" U="1f77ebb7-0137-52e8-02ffcbec6b3b1325"/>
 					<Co K="Q" U="1f77ebb7-0137-52e9-03ffcbec6b3b1325"/>
 				</C>
-				<C Type="InputRef" V="172" U="1f77e8ca-03b3-2f51-ffff721cca2b7737" Title="Vehicle status" Px="4224" Py="6912" Px2="6336" Py2="7104" Cl="238,238,238" Nio="4" Ref="1f77e480-01cc-f338-ffff721cca2b7737" Analog="true" LinkRefType="153">
+				<C Type="InputRef" V="172" U="1f77e8ca-03b3-2f51-ffff721cca2b7737" Title="CP1 Vehicle status" Px="4224" Py="6912" Px2="6336" Py2="7104" Cl="238,238,238" Nio="4" Ref="1f77e480-01cc-f338-ffff721cca2b7737" Analog="true" LinkRefType="153">
 					<Co K="AI" Nc="1" U="1f77e8ca-03b3-2f4d-00ff3f3b9cec55fc">
 						<In Input="1f77e480-01cc-f336-00ff5c94323c6157"/>
 					</Co>
@@ -1388,7 +1484,7 @@
 					<Co K="AQ" U="1f77e8ca-03b3-2f4f-02ff3f3b9cec55fc"/>
 					<Co K="Q" U="1f77e8ca-03b3-2f50-03ff3f3b9cec55fc"/>
 				</C>
-				<C Type="Wallbox" V="172" U="1f77de1c-0394-6584-ffff721cca2b7737" Title="Wallbox" Px="7200" Py="1824" Px2="9888" Py2="3480" Cl="0,143,187" Nio="55" LtE="527949407" PwrN="Power" Un1="&lt;v.3&gt;kW" Un2="&lt;v.1&gt;kWh" Rec="" P1="4.16" P2="11" SpStates="1f77de1c-0394-6547-ffff382d3f6a35a1,1f77de1c-0394-6548-ffff382d3f6a35a1,1f77de1c-0394-6549-ffff382d3f6a35a1,1f77de1c-0394-654a-ffff382d3f6a35a1,1f77de1c-0394-654b-ffff382d3f6a35a1,1f77de1c-0394-654c-ffff382d3f6a35a1" StatsType="8" TRK_NE="100" TRK_MAX="100">
+				<C Type="Wallbox" V="172" U="1f77de1c-0394-6584-ffff721cca2b7737" Title="Wallbox CP1" Px="7200" Py="1824" Px2="9888" Py2="3480" Cl="0,143,187" Nio="55" LtE="527949407" PwrN="Power" Un1="&lt;v.3&gt;kW" Un2="&lt;v.1&gt;kWh" Rec="" P1="4.16" P2="11" SpStates="1f77de1c-0394-6547-ffff382d3f6a35a1,1f77de1c-0394-6548-ffff382d3f6a35a1,1f77de1c-0394-6549-ffff382d3f6a35a1,1f77de1c-0394-654a-ffff382d3f6a35a1,1f77de1c-0394-654b-ffff382d3f6a35a1,1f77de1c-0394-654c-ffff382d3f6a35a1" StatsType="8" TRK_NE="100" TRK_MAX="100">
 					<Co K="allow" Inv="true" U="1f77de1c-0394-654d-00ff382d3f6a35a1"/>
 					<Co K="prio" U="1f77de1c-0394-654e-01ff382d3f6a35a1"/>
 					<Co K="connected" Nc="1" U="1f77de1c-0394-654f-02ff382d3f6a35a1">
@@ -1464,7 +1560,7 @@
 					<statGrp id="1" m="10"/>
 					<statGrp id="2" m="11" acc="true"/>
 				</C>
-				<C Type="Formula" V="172" U="1f77de99-02b8-86e1-ffff721cca2b7737" Title="mono" Px="7296" Py="4320" Px2="8640" Py2="5208" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;0;IF(I2&gt;100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6);0)">
+				<C Type="Formula" V="172" U="1f77de99-02b8-86e1-ffff721cca2b7737" Title="CP1 mono" Px="7296" Py="4320" Px2="8640" Py2="5208" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;0;IF(I2&gt;100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6);0)">
 					<Co K="Input1" Nc="1" U="1f77de99-02b8-86db-00ff19fa2dbc87f2">
 						<In Input="1f77de1c-0394-6571-24ff382d3f6a35a1" CF="true"/>
 					</Co>
@@ -1476,7 +1572,7 @@
 					<Co K="AQ" U="1f77de99-02b8-86df-04ff19fa2dbc87f2"/>
 					<Co K="TQ" U="1f77de99-02b8-86e0-05ff19fa2dbc87f2"/>
 				</C>
-				<C Type="Formula" V="172" U="1f77df11-037f-b336-fffffcc3eaf48635" Title="3 fase" Px="7296" Py="5280" Px2="8640" Py2="5976" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;0;MIN(MAX(INT((I1*1000)/(400*1,732));6);80);0)">
+				<C Type="Formula" V="172" U="1f77df11-037f-b336-fffffcc3eaf48635" Title="CP1 3 fase" Px="7296" Py="5280" Px2="8640" Py2="5976" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;0;MIN(MAX(INT((I1*1000)/(400*1,732));6);80);0)">
 					<Co K="Input1" Nc="1" U="1f77df11-037f-b337-fffffcc3eaf48635">
 						<In Input="1f77de1c-0394-6571-24ff382d3f6a35a1" CF="true"/>
 					</Co>
@@ -1486,7 +1582,7 @@
 					<Co K="AQ" U="1f77df11-037f-b33b-fffffcc3eaf48635"/>
 					<Co K="TQ" U="1f77df11-037f-b33c-fffffcc3eaf48635"/>
 				</C>
-				<C Type="Formula" V="172" U="1f77ec00-0100-9000-ffff721cca2b7737" Title="Vehicle connected" Px="4224" Py="6000" Px2="5568" Py2="6696" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;16944;IF(I1&lt;17459;1;0);0)">
+				<C Type="Formula" V="172" U="1f77ec00-0100-9000-ffff721cca2b7737" Title="CP1 Vehicle connected" Px="4224" Py="6000" Px2="5568" Py2="6696" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;16944;IF(I1&lt;17459;1;0);0)">
 					<Co K="Input1" Nc="1" U="1f77ec00-0100-9001-ffff721cca2b7737">
 						<In Input="1f77e8ca-03b3-2f4f-02ff3f3b9cec55fc"/>
 					</Co>
@@ -1496,7 +1592,7 @@
 					<Co K="AQ" U="1f77ec00-0100-9005-ffff721cca2b7737"/>
 					<Co K="TQ" U="1f77ec00-0100-9006-ffff721cca2b7737"/>
 				</C>
-				<C Type="Formula" V="172" U="1f77ec00-0100-9010-ffff721cca2b7737" Title="Charging active" Px="5760" Py="6000" Px2="7104" Py2="6696" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;17200;IF(I1&lt;17459;1;0);0)">
+				<C Type="Formula" V="172" U="1f77ec00-0100-9010-ffff721cca2b7737" Title="CP1 Charging active" Px="5760" Py="6000" Px2="7104" Py2="6696" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;17200;IF(I1&lt;17459;1;0);0)">
 					<Co K="Input1" Nc="1" U="1f77ec00-0100-9011-ffff721cca2b7737">
 						<In Input="1f77e8ca-03b3-2f4f-02ff3f3b9cec55fc"/>
 					</Co>
@@ -1506,7 +1602,7 @@
 					<Co K="AQ" U="1f77ec00-0100-9015-ffff721cca2b7737"/>
 					<Co K="TQ" U="1f77ec00-0100-9016-ffff721cca2b7737"/>
 				</C>
-				<C Type="State" V="172" U="1f77ebbe-00d8-56a3-ffff721cca2b7737" Title="Error" Px="7200" Py="7296" Px2="9888" Py2="8184" Cl="105,195,80" Nio="7">
+				<C Type="State" V="172" U="1f77ebbe-00d8-56a3-ffff721cca2b7737" Title="CP1 Error" Px="7200" Py="7296" Px2="9888" Py2="8184" Cl="105,195,80" Nio="7">
 					<Co K="I1" Nc="1" U="1f77ebbe-00d8-569c-00ff032b46eefdee">
 						<In Input="1f77ebb7-0137-52e8-02ffcbec6b3b1325"/>
 					</Co>
@@ -1547,20 +1643,20 @@ active" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0
 						<StateText Valid="true" ValidV="true" Text="" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905"/>
 					</StateTexts>
 				</C>
-				<C Type="OutputRefLM" V="172" U="1f77e8e1-02dc-3d7f-ffff721cca2b7737" Title="Vehicle status" Px="7296" Py="6912" Px2="9408" Py2="7104" Cl="238,238,238" Nio="2" Ref="1f77e8dc-02b6-39f2-ffff721cca2b7737">
+				<C Type="OutputRefLM" V="172" U="1f77e8e1-02dc-3d7f-ffff721cca2b7737" Title="CP1 Vehicle status" Px="7296" Py="6912" Px2="9408" Py2="7104" Cl="238,238,238" Nio="2" Ref="1f77e8dc-02b6-39f2-ffff721cca2b7737">
 					<Co K="AI" Nc="1" U="1f77e8e1-02dc-3d7d-00ffc6bebacb79fe">
 						<In Input="1f77e8ca-03b3-2f4f-02ff3f3b9cec55fc"/>
 					</Co>
 					<Co K="AQ" U="1f77e8e1-02dc-3d7e-01ffc6bebacb79fe"/>
 					<LoggerMailer RefTracker="1f77e8dc-02b6-39f2-ffff721cca2b7737" On="&lt;v&gt;" Off="&lt;v&gt;" MinimumTime="5000"/>
 				</C>
-				<C Type="OutputRef" V="172" U="1f77de91-020f-8327-ffff721cca2b7737" Title="Max Charging Rate I" Px="7200" Py="3648" Px2="9312" Py2="3840" Cl="238,238,238" Nio="2" Ref="1f77dbb2-0006-54cc-ffff721cca2b7737" WF="16384" Analog="true" LinkRefType="156">
+				<C Type="OutputRef" V="172" U="1f77de91-020f-8327-ffff721cca2b7737" Title="CP1 Max Charging Rate I" Px="7200" Py="3648" Px2="9312" Py2="3840" Cl="238,238,238" Nio="2" Ref="1f77dbb2-0006-54cc-ffff721cca2b7737" WF="16384" Analog="true" LinkRefType="156">
 					<Co K="AI" Nc="1" U="1f77de91-020f-8325-00ffc3db490ffe1c">
 						<In Input="1f77df11-037f-b33b-fffffcc3eaf48635" CF="true"/>
 					</Co>
 					<Co K="AQ" U="1f77de91-020f-8326-01ffc3db490ffe1c"/>
 				</C>
-				<C Type="Formula" V="172" U="1f77ec02-0300-0100-ffff721cca2b7737" Title="Watchdog fallback current" Px="10848" Py="4320" Px2="12192" Py2="5016" Cl="105,195,80" Nio="6" Formula="6">
+				<C Type="Formula" V="172" U="1f77ec02-0300-0100-ffff721cca2b7737" Title="CP1 Watchdog fallback current" Px="10848" Py="4320" Px2="12192" Py2="5016" Cl="105,195,80" Nio="6" Formula="6">
 					<Co K="Input1" U="1f77ec02-0300-0101-00ff19fa2dbc87f2"/>
 					<Co K="Input2" U="1f77ec02-0300-0102-01ff19fa2dbc87f2"/>
 					<Co K="Input3" U="1f77ec02-0300-0103-02ff19fa2dbc87f2"/>
@@ -1568,13 +1664,13 @@ active" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0
 					<Co K="AQ" U="1f77ec02-0300-0105-04ff19fa2dbc87f2"/>
 					<Co K="TQ" U="1f77ec02-0300-0106-05ff19fa2dbc87f2"/>
 				</C>
-				<C Type="OutputRef" V="172" U="1f77ec02-0300-0107-ffff721cca2b7737" Title="Watchdog fallback current" Px="12480" Py="4320" Px2="14592" Py2="4512" Cl="238,238,238" Nio="2" Ref="1f77ec02-0300-010a-ffff721cca2b7737" WF="16384" Analog="true" LinkRefType="156">
+				<C Type="OutputRef" V="172" U="1f77ec02-0300-0107-ffff721cca2b7737" Title="CP1 Watchdog fallback current" Px="12480" Py="4320" Px2="14592" Py2="4512" Cl="238,238,238" Nio="2" Ref="1f77ec02-0300-010a-ffff721cca2b7737" WF="16384" Analog="true" LinkRefType="156">
 					<Co K="AI" Nc="1" U="1f77ec02-0300-0108-00ffc3db490ffe1c">
 						<In Input="1f77ec02-0300-0105-04ff19fa2dbc87f2" CF="true"/>
 					</Co>
 					<Co K="AQ" U="1f77ec02-0300-0109-01ffc3db490ffe1c"/>
 				</C>
-				<C Type="Formula" V="172" U="1f77ec02-0300-0110-ffff721cca2b7737" Title="Watchdog timer" Px="10848" Py="5280" Px2="12192" Py2="5976" Cl="105,195,80" Nio="6" Formula="300">
+				<C Type="Formula" V="172" U="1f77ec02-0300-0110-ffff721cca2b7737" Title="CP1 Watchdog timer" Px="10848" Py="5280" Px2="12192" Py2="5976" Cl="105,195,80" Nio="6" Formula="300">
 					<Co K="Input1" U="1f77ec02-0300-0111-00ff19fa2dbc87f2"/>
 					<Co K="Input2" U="1f77ec02-0300-0112-01ff19fa2dbc87f2"/>
 					<Co K="Input3" U="1f77ec02-0300-0113-02ff19fa2dbc87f2"/>
@@ -1582,11 +1678,261 @@ active" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0
 					<Co K="AQ" U="1f77ec02-0300-0115-04ff19fa2dbc87f2"/>
 					<Co K="TQ" U="1f77ec02-0300-0116-05ff19fa2dbc87f2"/>
 				</C>
-				<C Type="OutputRef" V="172" U="1f77ec02-0300-0117-ffff721cca2b7737" Title="Watchdog timer" Px="12480" Py="5280" Px2="14592" Py2="5472" Cl="238,238,238" Nio="2" Ref="1f77ec02-0300-011a-ffff721cca2b7737" WF="16384" Analog="true" LinkRefType="156">
+				<C Type="OutputRef" V="172" U="1f77ec02-0300-0117-ffff721cca2b7737" Title="CP1 Watchdog timer" Px="12480" Py="5280" Px2="14592" Py2="5472" Cl="238,238,238" Nio="2" Ref="1f77ec02-0300-011a-ffff721cca2b7737" WF="16384" Analog="true" LinkRefType="156">
 					<Co K="AI" Nc="1" U="1f77ec02-0300-0118-00ffc3db490ffe1c">
 						<In Input="1f77ec02-0300-0115-04ff19fa2dbc87f2" CF="true"/>
 					</Co>
 					<Co K="AQ" U="1f77ec02-0300-0119-01ffc3db490ffe1c"/>
+				</C>
+				<C Type="InputRef" V="172" U="1f77ec01-0200-002a-ffff721cca2b7737" Title="CP2 Active Power" Px="4128" Py="12688" Px2="6240" Py2="12880" Cl="238,238,238" Nio="4" Ref="1f77ec01-0200-0003-ffff721cca2b7737" WF="133120" Analog="true" LinkRefType="153">
+					<Co K="AI" Nc="1" U="1f77ec01-0200-002b-00ff6bb11c56a958">
+						<In Input="1f77ec01-0200-0004-00ffb08685efacf6"/>
+					</Co>
+					<Co K="I" Nc="1" U="1f77ec01-0200-002c-01ff6bb11c56a958">
+						<In Input="1f77ec01-0200-0005-01ffb08685efacf6"/>
+					</Co>
+					<Co K="AQ" U="1f77ec01-0200-002d-02ff6bb11c56a958"/>
+					<Co K="Q" U="1f77ec01-0200-002e-03ff6bb11c56a958"/>
+				</C>
+				<C Type="InputRef" V="172" U="1f77ec01-0200-002f-ffff721cca2b7737" Title="CP2 Counter Active Energy" Px="4128" Py="12880" Px2="6240" Py2="13072" Cl="238,238,238" Nio="4" Ref="1f77ec01-0200-0000-ffff721cca2b7737" WF="133120" Analog="true" LinkRefType="153">
+					<Co K="AI" Nc="1" U="1f77ec01-0200-0030-00ff913b3ea7c259">
+						<In Input="1f77ec01-0200-0001-00ffb08685efacf6"/>
+					</Co>
+					<Co K="I" Nc="1" U="1f77ec01-0200-0031-01ff913b3ea7c259">
+						<In Input="1f77ec01-0200-0002-01ffb08685efacf6"/>
+					</Co>
+					<Co K="AQ" U="1f77ec01-0200-0032-02ff913b3ea7c259"/>
+					<Co K="Q" U="1f77ec01-0200-0033-03ff913b3ea7c259"/>
+				</C>
+				<C Type="InputRef" V="172" U="1f77ec01-0200-0034-ffff721cca2b7737" Title="CP2 Voltage of phase L1" Px="4224" Py="14800" Px2="6336" Py2="14992" Cl="238,238,238" Nio="4" Ref="1f77ec01-0200-0009-ffff721cca2b7737" WF="133120" Analog="true" LinkRefType="153">
+					<Co K="AI" Nc="1" U="1f77ec01-0200-0035-00ff4465d7f08c71">
+						<In Input="1f77ec01-0200-000a-00ffb08685efacf6"/>
+					</Co>
+					<Co K="I" Nc="1" U="1f77ec01-0200-0036-01ff4465d7f08c71">
+						<In Input="1f77ec01-0200-000b-01ffb08685efacf6"/>
+					</Co>
+					<Co K="AQ" U="1f77ec01-0200-0037-02ff4465d7f08c71"/>
+					<Co K="Q" U="1f77ec01-0200-0038-03ff4465d7f08c71"/>
+				</C>
+				<C Type="InputRef" V="172" U="1f77ec01-0200-0039-ffff721cca2b7737" Title="CP2 Error Code" Px="4128" Py="17776" Px2="6240" Py2="17968" Cl="238,238,238" Nio="4" Ref="1f77ec01-0200-001b-ffff721cca2b7737" WF="131072" Analog="true" LinkRefType="153">
+					<Co K="AI" Nc="1" U="1f77ec01-0200-003a-00ffcbec6b3b1325">
+						<In Input="1f77ec01-0200-001c-00ffb08685efacf6"/>
+					</Co>
+					<Co K="I" Nc="1" U="1f77ec01-0200-003b-01ffcbec6b3b1325">
+						<In Input="1f77ec01-0200-001d-01ffb08685efacf6"/>
+					</Co>
+					<Co K="AQ" U="1f77ec01-0200-003c-02ffcbec6b3b1325"/>
+					<Co K="Q" U="1f77ec01-0200-003d-03ffcbec6b3b1325"/>
+				</C>
+				<C Type="InputRef" V="172" U="1f77ec01-0200-003e-ffff721cca2b7737" Title="CP2 Vehicle status" Px="4224" Py="16912" Px2="6336" Py2="17104" Cl="238,238,238" Nio="4" Ref="1f77ec01-0200-0021-ffff721cca2b7737" Analog="true" LinkRefType="153">
+					<Co K="AI" Nc="1" U="1f77ec01-0200-003f-00ff3f3b9cec55fc">
+						<In Input="1f77ec01-0200-0022-00ff5c94323c6157"/>
+					</Co>
+					<Co K="I" Nc="1" U="1f77ec01-0200-0040-01ff3f3b9cec55fc">
+						<In Input="1f77ec01-0200-0023-01ff5c94323c6157"/>
+					</Co>
+					<Co K="AQ" U="1f77ec01-0200-0041-02ff3f3b9cec55fc"/>
+					<Co K="Q" U="1f77ec01-0200-0042-03ff3f3b9cec55fc"/>
+				</C>
+				<C Type="Wallbox" V="172" U="1f77ec01-0200-0043-ffff721cca2b7737" Title="Wallbox CP2" Px="7200" Py="11824" Px2="9888" Py2="13480" Cl="0,143,187" Nio="55" LtE="527949407" PwrN="Power" Un1="&lt;v.3&gt;kW" Un2="&lt;v.1&gt;kWh" Rec="" P1="4.16" P2="11" SpStates="1f77ec01-0200-00a9-ffff382d3f6a35a1,1f77ec01-0200-00aa-ffff382d3f6a35a1,1f77ec01-0200-00ab-ffff382d3f6a35a1,1f77ec01-0200-00ac-ffff382d3f6a35a1,1f77ec01-0200-00ad-ffff382d3f6a35a1,1f77ec01-0200-00ae-ffff382d3f6a35a1" StatsType="8" TRK_NE="100" TRK_MAX="100">
+					<Co K="allow" Inv="true" U="1f77ec01-0200-0044-00ff382d3f6a35a1"/>
+					<Co K="prio" U="1f77ec01-0200-0045-01ff382d3f6a35a1"/>
+					<Co K="connected" Nc="1" U="1f77ec01-0200-0046-02ff382d3f6a35a1">
+						<In Input="1f77ec01-0200-008e-ffff721cca2b7737"/>
+					</Co>
+					<Co K="power" Nc="1" U="1f77ec01-0200-0047-03ff382d3f6a35a1">
+						<In Input="1f77ec01-0200-002d-02ff6bb11c56a958"/>
+					</Co>
+					<Co K="energy" Nc="1" U="1f77ec01-0200-0048-04ff382d3f6a35a1">
+						<In Input="1f77ec01-0200-0032-02ff913b3ea7c259"/>
+					</Co>
+					<Co K="active" Nc="1" U="1f77ec01-0200-0049-05ff382d3f6a35a1">
+						<In Input="1f77ec01-0200-0095-ffff721cca2b7737"/>
+					</Co>
+					<Co K="ocppAuth" U="1f77ec01-0200-004a-06ff382d3f6a35a1"/>
+					<Co K="sessStop" U="1f77ec01-0200-004b-07ff382d3f6a35a1"/>
+					<Co K="rebootDev" U="1f77ec01-0200-004c-08ff382d3f6a35a1"/>
+					<Co K="setmode1" U="1f77ec01-0200-004d-09ff382d3f6a35a1"/>
+					<Co K="setmode2" U="1f77ec01-0200-004e-0aff382d3f6a35a1"/>
+					<Co K="setmode3" U="1f77ec01-0200-004f-0bff382d3f6a35a1"/>
+					<Co K="setmode4" U="1f77ec01-0200-0050-0cff382d3f6a35a1"/>
+					<Co K="setmode5" U="1f77ec01-0200-0051-0dff382d3f6a35a1"/>
+					<Co K="valmode1" U="1f77ec01-0200-0052-0eff382d3f6a35a1"/>
+					<Co K="valmode2" U="1f77ec01-0200-0053-0fff382d3f6a35a1"/>
+					<Co K="valmode3" U="1f77ec01-0200-0054-10ff382d3f6a35a1"/>
+					<Co K="valmode4" U="1f77ec01-0200-0055-11ff382d3f6a35a1"/>
+					<Co K="valmode5" U="1f77ec01-0200-0056-12ff382d3f6a35a1"/>
+					<Co K="pricemode1" U="1f77ec01-0200-0057-13ff382d3f6a35a1"/>
+					<Co K="pricemode2" U="1f77ec01-0200-0058-14ff382d3f6a35a1"/>
+					<Co K="pricemode3" U="1f77ec01-0200-0059-15ff382d3f6a35a1"/>
+					<Co K="pricemode4" U="1f77ec01-0200-005a-16ff382d3f6a35a1"/>
+					<Co K="pricemode5" U="1f77ec01-0200-005b-17ff382d3f6a35a1"/>
+					<Co K="pricemode6" U="1f77ec01-0200-005c-18ff382d3f6a35a1"/>
+					<Co K="user" U="1f77ec01-0200-005d-19ff382d3f6a35a1"/>
+					<Co K="loadshed" U="1f77ec01-0200-005e-1aff382d3f6a35a1"/>
+					<Co K="off" U="1f77ec01-0200-005f-1bff382d3f6a35a1"/>
+					<Co K="resetM" U="1f77ec01-0200-0060-1cff382d3f6a35a1"/>
+					<Co K="modeUnplug" U="1f77ec01-0200-0061-1dff382d3f6a35a1"/>
+					<Co K="priceHour" U="1f77ec01-0200-0062-1eff382d3f6a35a1"/>
+					<Co K="outAllow" U="1f77ec01-0200-0063-1fff382d3f6a35a1"/>
+					<Co K="outConnected" U="1f77ec01-0200-0064-20ff382d3f6a35a1"/>
+					<Co K="outActive" U="1f77ec01-0200-0065-21ff382d3f6a35a1"/>
+					<Co K="outPower" U="1f77ec01-0200-0066-22ff382d3f6a35a1"/>
+					<Co K="outMode" U="1f77ec01-0200-0067-23ff382d3f6a35a1"/>
+					<Co K="outLimit" U="1f77ec01-0200-0068-24ff382d3f6a35a1"/>
+					<Co K="outLoadshed" U="1f77ec01-0200-0069-25ff382d3f6a35a1"/>
+					<Co K="outMeterReading" U="1f77ec01-0200-006a-26ff382d3f6a35a1"/>
+					<Co K="outConsCurr" U="1f77ec01-0200-006b-27ff382d3f6a35a1"/>
+					<Co K="outConsLast" U="1f77ec01-0200-006c-28ff382d3f6a35a1"/>
+					<Co K="outConsDay" U="1f77ec01-0200-006d-29ff382d3f6a35a1"/>
+					<Co K="outConsLastDay" U="1f77ec01-0200-006e-2aff382d3f6a35a1"/>
+					<Co K="outConsWeek" U="1f77ec01-0200-006f-2bff382d3f6a35a1"/>
+					<Co K="outConsLastWeek" U="1f77ec01-0200-0070-2cff382d3f6a35a1"/>
+					<Co K="outConsMonth" U="1f77ec01-0200-0071-2dff382d3f6a35a1"/>
+					<Co K="outConsLastMonth" U="1f77ec01-0200-0072-2eff382d3f6a35a1"/>
+					<Co K="outConsYear" U="1f77ec01-0200-0073-2fff382d3f6a35a1"/>
+					<Co K="outConsLastYear" U="1f77ec01-0200-0074-30ff382d3f6a35a1"/>
+					<Co K="outLog" U="1f77ec01-0200-0075-31ff382d3f6a35a1"/>
+					<Co K="outSesE" U="1f77ec01-0200-0076-32ff382d3f6a35a1"/>
+					<Co K="outSesS" U="1f77ec01-0200-0077-33ff382d3f6a35a1"/>
+					<Co K="outPrice" U="1f77ec01-0200-0078-34ff382d3f6a35a1"/>
+					<Co K="outUserId" U="1f77ec01-0200-0079-35ff382d3f6a35a1"/>
+					<Co K="OutputAPI" U="1f77ec01-0200-007a-36ff382d3f6a35a1"/>
+					<IoData Visu="true" Cr="1f77db81-02ff-3eaf-ffff721cca2b7737" Pr="1f77db81-02f2-3e0b-ffff721cca2b7737" UseInFav="true"/>
+					<Modes>
+						<Mode N="Max. charging power" L="11"/>
+						<Mode N=""/>
+						<Mode N=""/>
+						<Mode N=""/>
+						<Mode N=""/>
+						<Mode N="Fixed setpoint" I="true" Ix="99"/>
+					</Modes>
+					<statGrp id="1" m="10"/>
+					<statGrp id="2" m="11" acc="true"/>
+				</C>
+				<C Type="Formula" V="172" U="1f77ec01-0200-007b-ffff721cca2b7737" Title="CP2 mono" Px="7296" Py="14320" Px2="8640" Py2="15208" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;0;IF(I2&gt;100;MIN(MAX(INT((I1*1000)/MAX(I2;100));6);80);6);0)">
+					<Co K="Input1" Nc="1" U="1f77ec01-0200-007c-00ff19fa2dbc87f2">
+						<In Input="1f77ec01-0200-0068-24ff382d3f6a35a1" CF="true"/>
+					</Co>
+					<Co K="Input2" Nc="1" U="1f77ec01-0200-007d-01ff19fa2dbc87f2">
+						<In Input="1f77ec01-0200-0037-02ff4465d7f08c71"/>
+					</Co>
+					<Co K="Input3" U="1f77ec01-0200-007e-02ff19fa2dbc87f2"/>
+					<Co K="Input4" U="1f77ec01-0200-007f-03ff19fa2dbc87f2"/>
+					<Co K="AQ" U="1f77ec01-0200-0080-04ff19fa2dbc87f2"/>
+					<Co K="TQ" U="1f77ec01-0200-0081-05ff19fa2dbc87f2"/>
+				</C>
+				<C Type="Formula" V="172" U="1f77ec01-0200-0082-fffffcc3eaf48635" Title="CP2 3 fase" Px="7296" Py="15280" Px2="8640" Py2="15976" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;0;MIN(MAX(INT((I1*1000)/(400*1,732));6);80);0)">
+					<Co K="Input1" Nc="1" U="1f77ec01-0200-0083-fffffcc3eaf48635">
+						<In Input="1f77ec01-0200-0068-24ff382d3f6a35a1" CF="true"/>
+					</Co>
+					<Co K="Input2" U="1f77ec01-0200-0084-fffffcc3eaf48635"/>
+					<Co K="Input3" U="1f77ec01-0200-0085-fffffcc3eaf48635"/>
+					<Co K="Input4" U="1f77ec01-0200-0086-fffffcc3eaf48635"/>
+					<Co K="AQ" U="1f77ec01-0200-0087-fffffcc3eaf48635"/>
+					<Co K="TQ" U="1f77ec01-0200-0088-fffffcc3eaf48635"/>
+				</C>
+				<C Type="Formula" V="172" U="1f77ec01-0200-0089-ffff721cca2b7737" Title="CP2 Vehicle connected" Px="4224" Py="16000" Px2="5568" Py2="16696" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;16944;IF(I1&lt;17459;1;0);0)">
+					<Co K="Input1" Nc="1" U="1f77ec01-0200-008a-ffff721cca2b7737">
+						<In Input="1f77ec01-0200-0041-02ff3f3b9cec55fc"/>
+					</Co>
+					<Co K="Input2" U="1f77ec01-0200-008b-ffff721cca2b7737"/>
+					<Co K="Input3" U="1f77ec01-0200-008c-ffff721cca2b7737"/>
+					<Co K="Input4" U="1f77ec01-0200-008d-ffff721cca2b7737"/>
+					<Co K="AQ" U="1f77ec01-0200-008e-ffff721cca2b7737"/>
+					<Co K="TQ" U="1f77ec01-0200-008f-ffff721cca2b7737"/>
+				</C>
+				<C Type="Formula" V="172" U="1f77ec01-0200-0090-ffff721cca2b7737" Title="CP2 Charging active" Px="5760" Py="16000" Px2="7104" Py2="16696" Cl="105,195,80" Nio="6" Formula="IF(I1&gt;17200;IF(I1&lt;17459;1;0);0)">
+					<Co K="Input1" Nc="1" U="1f77ec01-0200-0091-ffff721cca2b7737">
+						<In Input="1f77ec01-0200-0041-02ff3f3b9cec55fc"/>
+					</Co>
+					<Co K="Input2" U="1f77ec01-0200-0092-ffff721cca2b7737"/>
+					<Co K="Input3" U="1f77ec01-0200-0093-ffff721cca2b7737"/>
+					<Co K="Input4" U="1f77ec01-0200-0094-ffff721cca2b7737"/>
+					<Co K="AQ" U="1f77ec01-0200-0095-ffff721cca2b7737"/>
+					<Co K="TQ" U="1f77ec01-0200-0096-ffff721cca2b7737"/>
+				</C>
+				<C Type="State" V="172" U="1f77ec01-0200-0097-ffff721cca2b7737" Title="CP2 Error" Px="7200" Py="17296" Px2="9888" Py2="18184" Cl="105,195,80" Nio="7">
+					<Co K="I1" Nc="1" U="1f77ec01-0200-0098-00ff032b46eefdee">
+						<In Input="1f77ec01-0200-003c-02ffcbec6b3b1325"/>
+					</Co>
+					<Co K="I2" U="1f77ec01-0200-0099-01ff032b46eefdee"/>
+					<Co K="I3" U="1f77ec01-0200-009a-02ff032b46eefdee"/>
+					<Co K="I4" U="1f77ec01-0200-009b-03ff032b46eefdee"/>
+					<Co K="TQ" U="1f77ec01-0200-009c-04ff032b46eefdee"/>
+					<Co K="AQ" U="1f77ec01-0200-009d-05ff032b46eefdee"/>
+					<Co K="OutputAPI" U="1f77ec01-0200-009e-06ff032b46eefdee"/>
+					<IoData Visu="true" Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737"/>
+					<Display Unit="&lt;v.pr&gt;"/>
+					<StateTexts Num="24">
+						<StateText Valid="true" ValidV="true" Text="All OK" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1"/>
+						<StateText Valid="true" ValidV="true" Text="External temperature too high" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="1" CondT0="1"/>
+						<StateText Valid="true" ValidV="true" Text="Temperature derating active" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="2" CondT0="2"/>
+						<StateText Valid="true" ValidV="true" Text="Charging point configuration
+error" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="4" CondT0="4"/>
+						<StateText Valid="true" ValidV="true" Text="EV paused | Load management
+active" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="5" CondT0="5"/>
+						<StateText Valid="true" ValidV="true" Text="Event Actions configuration unclear" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="6" CondT0="6"/>
+						<StateText Valid="true" ValidV="true" Text="RFID reader error" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="7" CondT0="7"/>
+						<StateText Valid="true" ValidV="true" Text="13 A and 20 A connector rejected" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="17" CondT0="17"/>
+						<StateText Valid="true" ValidV="true" Text="13 A connector rejected" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="18" CondT0="18"/>
+						<StateText Valid="true" ValidV="true" Text="PP error" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="19" CondT0="19"/>
+						<StateText Valid="true" ValidV="true" Text="CP error" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="20" CondT0="20"/>
+						<StateText Valid="true" ValidV="true" Text="Vehicle error F" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="21" CondT0="21"/>
+						<StateText Valid="true" ValidV="true" Text="Locking error" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="22" CondT0="22"/>
+						<StateText Valid="true" ValidV="true" Text="Lock release error" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="23" CondT0="23"/>
+						<StateText Valid="true" ValidV="true" Text="Unknown locking state" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="24" CondT0="24"/>
+						<StateText Valid="true" ValidV="true" Text="Overcurrent detected" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="25" CondT0="25"/>
+						<StateText Valid="true" ValidV="true" Text="Measuring device communication error" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="26" CondT0="26"/>
+						<StateText Valid="true" ValidV="true" Text="Invalid status D" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="27" CondT0="27"/>
+						<StateText Valid="true" ValidV="true" Text="Contactor error" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="28" CondT0="28"/>
+						<StateText Valid="true" ValidV="true" Text="EV diode error" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="29" CondT0="29"/>
+						<StateText Valid="true" ValidV="true" Text="Power supply error" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="30" CondT0="30"/>
+						<StateText Valid="true" ValidV="true" Text="Residual current tripping" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="31" CondT0="31"/>
+						<StateText Valid="true" ValidV="true" Text="Residual current sensor selftest error" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0="1" CondV0="32" CondT0="32"/>
+						<StateText Valid="true" ValidV="true" Text="" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905"/>
+					</StateTexts>
+				</C>
+				<C Type="OutputRefLM" V="172" U="1f77ec01-0200-00a2-ffff721cca2b7737" Title="CP2 Vehicle status" Px="7296" Py="16912" Px2="9408" Py2="17104" Cl="238,238,238" Nio="2" Ref="1f77ec01-0200-00a8-ffff721cca2b7737">
+					<Co K="AI" Nc="1" U="1f77ec01-0200-00a3-00ffc6bebacb79fe">
+						<In Input="1f77ec01-0200-0041-02ff3f3b9cec55fc"/>
+					</Co>
+					<Co K="AQ" U="1f77ec01-0200-00a4-01ffc6bebacb79fe"/>
+					<LoggerMailer RefTracker="1f77ec01-0200-00a8-ffff721cca2b7737" On="&lt;v&gt;" Off="&lt;v&gt;" MinimumTime="5000"/>
+				</C>
+				<C Type="OutputRef" V="172" U="1f77ec01-0200-00a5-ffff721cca2b7737" Title="CP2 Max Charging Rate I" Px="7200" Py="13648" Px2="9312" Py2="13840" Cl="238,238,238" Nio="2" Ref="1f77ec01-0200-0024-ffff721cca2b7737" WF="16384" Analog="true" LinkRefType="156">
+					<Co K="AI" Nc="1" U="1f77ec01-0200-00a6-00ffc3db490ffe1c">
+						<In Input="1f77ec01-0200-0087-fffffcc3eaf48635" CF="true"/>
+					</Co>
+					<Co K="AQ" U="1f77ec01-0200-00a7-01ffc3db490ffe1c"/>
+				</C>
+				<C Type="Formula" V="172" U="1f77ec02-0300-0200-ffff721cca2b7737" Title="CP2 Watchdog fallback current" Px="10848" Py="14320" Px2="12192" Py2="15016" Cl="105,195,80" Nio="6" Formula="6">
+					<Co K="Input1" U="1f77ec02-0300-0201-00ff19fa2dbc87f2"/>
+					<Co K="Input2" U="1f77ec02-0300-0202-01ff19fa2dbc87f2"/>
+					<Co K="Input3" U="1f77ec02-0300-0203-02ff19fa2dbc87f2"/>
+					<Co K="Input4" U="1f77ec02-0300-0204-03ff19fa2dbc87f2"/>
+					<Co K="AQ" U="1f77ec02-0300-0205-04ff19fa2dbc87f2"/>
+					<Co K="TQ" U="1f77ec02-0300-0206-05ff19fa2dbc87f2"/>
+				</C>
+				<C Type="OutputRef" V="172" U="1f77ec02-0300-0207-ffff721cca2b7737" Title="CP2 Watchdog fallback current" Px="12480" Py="14320" Px2="14592" Py2="14512" Cl="238,238,238" Nio="2" Ref="1f77ec02-0300-020a-ffff721cca2b7737" WF="16384" Analog="true" LinkRefType="156">
+					<Co K="AI" Nc="1" U="1f77ec02-0300-0208-00ffc3db490ffe1c">
+						<In Input="1f77ec02-0300-0205-04ff19fa2dbc87f2" CF="true"/>
+					</Co>
+					<Co K="AQ" U="1f77ec02-0300-0209-01ffc3db490ffe1c"/>
+				</C>
+				<C Type="Formula" V="172" U="1f77ec02-0300-0210-ffff721cca2b7737" Title="CP2 Watchdog timer" Px="10848" Py="15280" Px2="12192" Py2="15976" Cl="105,195,80" Nio="6" Formula="300">
+					<Co K="Input1" U="1f77ec02-0300-0211-00ff19fa2dbc87f2"/>
+					<Co K="Input2" U="1f77ec02-0300-0212-01ff19fa2dbc87f2"/>
+					<Co K="Input3" U="1f77ec02-0300-0213-02ff19fa2dbc87f2"/>
+					<Co K="Input4" U="1f77ec02-0300-0214-03ff19fa2dbc87f2"/>
+					<Co K="AQ" U="1f77ec02-0300-0215-04ff19fa2dbc87f2"/>
+					<Co K="TQ" U="1f77ec02-0300-0216-05ff19fa2dbc87f2"/>
+				</C>
+				<C Type="OutputRef" V="172" U="1f77ec02-0300-0217-ffff721cca2b7737" Title="CP2 Watchdog timer" Px="12480" Py="15280" Px2="14592" Py2="15472" Cl="238,238,238" Nio="2" Ref="1f77ec02-0300-021a-ffff721cca2b7737" WF="16384" Analog="true" LinkRefType="156">
+					<Co K="AI" Nc="1" U="1f77ec02-0300-0218-00ffc3db490ffe1c">
+						<In Input="1f77ec02-0300-0215-04ff19fa2dbc87f2" CF="true"/>
+					</Co>
+					<Co K="AQ" U="1f77ec02-0300-0219-01ffc3db490ffe1c"/>
 				</C>
 			</C>
 		</C>

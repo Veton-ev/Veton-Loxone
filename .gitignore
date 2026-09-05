@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+
+# Miniserver access tooling - not part of the shipped integration
+tools/loxone-client.py
+
+# Internal pointers (owners, handbook paths) - Claude Code reads it alongside CLAUDE.md, never commit
+CLAUDE.local.md

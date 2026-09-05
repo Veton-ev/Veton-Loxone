@@ -2,6 +2,9 @@
 # Guardrail-kit pre-commit hook: secret scan of STAGED content. Exit 1 = commit refused.
 # Installed by kit/install-hooks.sh (git config core.hooksPath .githooks).
 #
+# Layer 0: public-repo hygiene — internal people's names, personal home paths and session
+#          scratchpad paths in STAGED content. Always runs (not in .gitleaks.toml on purpose:
+#          CI scans the whole history and these strings already sit in old commits).
 # Layer 1: gitleaks (if installed) with the repo's .gitleaks.toml.
 # Layer 2: fallback grep with the same shapes when gitleaks is absent — weaker (no entropy, no
 #          default rules) but never silent. Install gitleaks to get the real scanner.
@@ -12,6 +15,29 @@ ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 CFG=""
 [ -f .gitleaks.toml ] && CFG=".gitleaks.toml"
+
+# ---------------------------------------------------------------- layer 0: internal names / paths
+# Case-insensitive, word-bounded. The first letter of each word is bracketed so this file never
+# matches itself. CLAUDE.local.md is gitignored; skipped here too in case it is ever force-added.
+INTERNAL_RE='\b[b]rend\b|\b[a]ndrii\b|\b[j]ens([ .,@]|$)|/tmp/[c]laude-|/home/[j]ens'
+ifail=0
+while IFS= read -r -d '' f; do
+  [ "$f" = "CLAUDE.local.md" ] && continue
+  content="$(git show ":$f" 2>/dev/null || true)"
+  [ -n "$content" ] || continue
+  printf '%s' "$content" | grep -qI . || continue   # binary
+  hits="$(printf '%s\n' "$content" | grep -noiE -- "$INTERNAL_RE" || true)"
+  if [ -n "$hits" ]; then
+    # print file:line only
+    printf '%s\n' "$hits" | cut -d: -f1 | while read -r ln; do echo "❌ internal name or personal/scratchpad path (public repo): $f:$ln" >&2; done
+    ifail=1
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+if [ "$ifail" -ne 0 ]; then
+  echo "❌ pre-commit: staged changes name internal people or carry personal/scratchpad paths. Commit refused." >&2
+  echo "   Move the detail to CLAUDE.local.md (gitignored) or reword generically, then re-stage." >&2
+  exit 1
+fi
 
 if command -v gitleaks >/dev/null 2>&1; then
   set +e

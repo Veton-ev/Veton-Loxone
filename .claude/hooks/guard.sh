@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # .claude/hooks/guard.sh — Claude Code PreToolUse hook for the Bash tool (guardrail tier G6).
+# PUBLIC-REPO VARIANT (kit/claude/hooks/guard.public.sh, installed by kit/apply.sh --public): identical to the
+# private hook except that remote-shell commands are blocked as a whole family — no host is named here,
+# because this file is published with the repo.
 #
 # Contract (verified against code.claude.com/docs/en/hooks, 2026-08-26):
 #   stdin  : JSON {"tool_name":"Bash","tool_input":{"command":"..."},"cwd":"...",...}
@@ -19,8 +22,8 @@
 #   2. git push --force / -f / --force-with-lease / --force-if-includes / --mirror / --all / '+ref'
 #   3. git push --delete / -d / ':branch'
 #   4. git branch -D/-d/--delete/-f main|master
-#   5. ssh / scp / rsync / sftp / mosh to the production host (plane.vetoncontrol.com, 104.248.83.95,
-#      root@plane*, bare `plane`) — whatever the command after it
+#   5. ssh / scp / rsync / sftp / mosh / autossh — ANY invocation, whatever the target. A public integration
+#      repo has nothing to deploy and no host to reach; a host-specific rule would publish the host.
 #   6. docker aimed at a remote daemon (-H / --host / --context / DOCKER_HOST=ssh|tcp) running
 #      compose up/down/restart/stop/rm/exec/run, and `docker context use <non-default>`
 #   7. make deploy* / make push-firmware
@@ -30,15 +33,15 @@
 #  11. odoo-bin / odoo with -u/--update/-i/--init
 #  12. git push of a RELEASE TAG: any refspec naming (or globbing) a v<digit>… tag — v1.2.3, refs/tags/v1.2.3,
 #      "v*", refs/tags/*, `origin tag v1.2.3` — and --tags / --follow-tags (they carry every local v* tag).
-#      In Veton-app a pushed v* tag ships to Play production + TestFlight (Codemagic), so a release tag is
-#      a human action. `git tag v1.2.3` itself stays allowed (local, harmless); non-v tags (docs-2026) push.
+#      A pushed v* tag is a release trigger, so a release tag is a human action. `git tag v1.2.3` itself
+#      stays allowed (local, harmless); non-v tags (docs-2026) push.
 #
 # Known gaps (documented, not hidden): a command fed to a shell via a file or heredoc
 # (`bash < script`), aliases/functions defined earlier in the same session, and `git config` tricks
 # (e.g. push.default / url rewrites) are not analysed. Branch protection (G1) is the fence that
 # binds humans and covers those.
 #
-# Test: kit/test-guard.sh  (env GUARD_COMMAND / GUARD_CWD bypass stdin for tests;
+# Test: kit/test-guard-public.sh  (env GUARD_COMMAND / GUARD_CWD bypass stdin for tests;
 #       GUARD_JSON_PARSER=jq|python3|bash forces one extractor)
 set -euo pipefail
 
@@ -110,14 +113,13 @@ block() {
    command: ${short//$'\n'/ ⏎ }
    Production changes only via a reviewed PR merged to main and the GitHub Actions deploy
    workflow (CI green → deploy → smoke → auto-rollback). Agents never push to main, force-push,
-   run deploy scripts, drive remote docker, or ssh/rsync/scp to the plane host.
+   run deploy scripts, drive remote docker, or ssh/rsync/scp anywhere from this repo.
    Do instead: commit on a feature branch, \`git push -u origin <branch>\`, open a PR with
    \`gh pr create\`, and let CI + the deploy workflow do the rest. If a human must act, say so and stop.
 EOF
   exit 2
 }
 
-PROD_HOST_RE='(^|@|//)(plane|plane\.vetoncontrol\.com|104\.248\.83\.95)(:|/|$)|root@plane'
 DEPLOY_SCRIPT_RE='(^|/)(deploy|canary-rollout|canary-deploy|canary-broadcast|canary-restore)\.sh$'
 READONLY_RE='^(grep|rg|egrep|fgrep|cat|echo|printf|less|more|head|tail|awk|sed|ls|wc|diff|stat|file|which|type|man|vim|vi|nano|code|bat|tree|jq|yq|sort|uniq|cut|tr|xxd|hexdump|md5sum|sha256sum|shellcheck|test|\[)$'
 SHELL_RE='^(bash|sh|zsh|dash|ksh|source|\.|eval)$'
@@ -182,7 +184,7 @@ check_head_policy() { # `git push` with no refspec / HEAD: pushes the CURRENT br
   return 0
 }
 
-TAG_BLOCK_MSG="release tags are pushed by a human (Codemagic/Play/TestFlight trigger) — see 95-agent-guide/guardrails.md"
+TAG_BLOCK_MSG="release tags are pushed by a human — see the internal handbook"
 
 is_release_tag_ref() { # $1 = one side of a refspec (quotes already stripped). True when it names, or a
   local r="$1" t          # glob could match, a v<digit>… tag: v1.2.3 · refs/tags/v1.2.3 · v* · refs/tags/* · refs/*
@@ -255,12 +257,8 @@ check_git() {
   return 0
 }
 
-check_remote_host() { # ssh/scp/rsync/sftp/mosh: any argument naming the prod host
-  local a
-  for a in "${T[@]:1}"; do
-    [[ "$a" =~ $PROD_HOST_RE ]] && block "'${T[0]}' to the production host ($a). Production is reached only by the deploy workflow."
-  done
-  return 0
+check_remote_host() { # ssh/scp/rsync/sftp/mosh/autossh: blocked outright, whatever the target
+  block "'${T[0]}' — remote-shell commands are never run from this repo (it has nothing to deploy; if a host must be touched, a human does it)."
 }
 
 check_docker() {
