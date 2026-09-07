@@ -35,6 +35,8 @@ F11 pause: X301 = 0 when the Wallbox block's target power (outLimit) is 0, so a
 F12 X301 RepeatRate 3600 -> 60 s: the setpoint (and a 0 A pause) is re-asserted
     at the watchdog cadence, so a CHARX-side revert of an external X301 write
     is undone within a minute instead of an hour
+F13 last RFID card UID (X275, String) -> Wallbox 'user' input, so a charging
+    session is attributed to the card holder; read-only, no new Modbus write
 """
 
 from __future__ import annotations
@@ -135,6 +137,11 @@ REGISTER_SPAN = {
     244: (0, 3 * 80 * 253 * 1000, "active power [mW]; worst case 3 x 80 A x 253 V"),
     250: (0, 10**11, "active-energy counter [Wh]; 1e11 Wh = 60.7 kW flat out for ~190 years"),
     264: (0, 100, "SOC [%]"),
+    # X275 is read as a Loxone String (ModbusDataType 101, F13): the value is
+    # text, so MinVal/MaxVal do not apply.  The STRING marker keeps the F7 audit
+    # from widening it AND from reporting it as NOT AUDITED.
+    275: ("string", "string", "last RFID card UID: 10 registers of big-endian ASCII, NUL-padded, "
+                              "e.g. 14 hex characters for a 7-byte card, 8 for a 4-byte card"),
     293: (0, 0xFFFFFFFF, "32-bit error BITFIELD, MSB X293 / LSB X294 -- bit N is 2**(N-1), "
                          "so a lone bit 22 fault is 2097152 and any bit from 14 up "
                          "already exceeds a 10000 ceiling"),
@@ -155,6 +162,39 @@ WATCHDOG = [
 ]
 # internal names for the minted Modbus actuators; CP1 -> AMQ60/61, CP2 -> AMQ62/63
 INAME_BASE = 60
+
+# F13 -- last RFID card UID.  CHARX register X275 (per charging point: 1275,
+# 2275, ... like the existing 1232/1299 inputs): FC03 holding registers, 10
+# words of big-endian ASCII, NUL-padded, holding the UID of the last card
+# presented -- e.g. 14 hex characters for a 7-byte card, 8 for a 4-byte card.
+# Measured byte-identical against the charger's own RFID event stream on a
+# production fleet (firmware 1.7.3, release mode OCPP); populated in every
+# release mode, so no mode gate.  It is STICKY: it keeps the previous card
+# until the next tap.  X308 ("reset last RFID") was measured INERT on that
+# firmware (write acknowledged, X275 unchanged), so no reset write is added
+# and this fix adds NO Modbus write at all.
+#
+# Loxone Config's Modbus analogue data-type list (Config 17's own resource
+# strings) is, in order: 16-bit Unsigned, 16-bit Signed, 32-bit Unsigned,
+# 32-bit Signed, 32-bit Float, String, 64-bit Unsigned, 64-bit Signed, 64-bit
+# Double, and the XML attribute is ModbusDataType = 96 + index: the existing
+# 98 = 32-bit unsigned, 102 = 64-bit unsigned, so String = 101.  HOW MANY
+# registers Config reads for a String is not known -- Config's attribute
+# vocabulary has no length attribute (only ModbusAddress, ModbusCmd,
+# ModbusDataType, ModbusPollingCycle, ModbusCoilQuantity, ModbusID), so none
+# is invented here.  TO CONFIRM in Loxone Config: the input should show the
+# full 14-character UID of a 7-byte card; fewer characters means Config reads
+# fewer registers.
+RFID_REG = 275
+RFID_TITLE = "Last RFID card"
+RFID_DATATYPE = "101"          # String
+RFID_DESC = ("Last RFID card UID as ASCII text (CHARX X%d: 10 holding registers, big-endian, "
+             "NUL-padded; 14 hex characters for a 7-byte card). Sticky: keeps the previous card "
+             "until the next tap. TO CONFIRM in Loxone Config: how many registers the String "
+             "data type reads - the value should show the full 14 characters; fewer means "
+             "fewer registers are read." % RFID_REG)
+# mint() sequence numbers used by F13 (F6 uses 0x00..0x1B per charging point)
+RFID_SEQ_BASE = 0x20
 
 # UUID prefix reserved for objects minted by this script.
 MINT_PREFIX = "1f77ec02-0300-"
@@ -596,10 +636,17 @@ def sensor_rows(lines: list[str], cp: int | None = None) -> list[tuple[int, int,
     return rows
 
 
+def is_string_register(reg: int) -> bool:
+    """True for registers read as Loxone String text (F13's X275): audited as
+    "known, not numeric" -- never widened, never reported NOT AUDITED."""
+    span = REGISTER_SPAN.get(reg)
+    return span is not None and span[0] == "string"
+
+
 def needed_range(line: str, reg: int) -> tuple[float, float, str] | None:
     """Engineering span this input must be able to show, or None if unknown."""
     span = REGISTER_SPAN.get(reg)
-    if span is None:
+    if span is None or is_string_register(reg):
         return None
     raw_lo, raw_hi, why = span
     slope, icept = linear_map(line)
@@ -628,8 +675,11 @@ def fix_sensor_ranges(lines: list[str], cp: int, log: list[str]) -> None:
     possible value are touched, and those are set to the physical span itself
     (the treatment X250 and X299 already got) -- nothing is ever narrowed.
     """
-    unknown, fixed, ok = [], [], 0
+    unknown, fixed, ok, strings = [], [], 0, []
     for i, reg, title in sensor_rows(lines, cp):
+        if is_string_register(reg):
+            strings.append("X%d%d %r" % (cp, reg, title))
+            continue
         need = needed_range(lines[i], reg)
         if need is None:
             unknown.append("X%d%d %r" % (cp, reg, title))
@@ -648,8 +698,10 @@ def fix_sensor_ranges(lines: list[str], cp: int, log: list[str]) -> None:
     if fixed:
         for f in fixed:
             log.append("F7  " + f)
-    log.append("F7  CP%d validity ranges: %d input(s) widened, %d already fine%s"
+    log.append("F7  CP%d validity ranges: %d input(s) widened, %d already fine%s%s"
                % (cp, len(fixed), ok,
+                  ", %d String input(s) (text, no numeric range): %s" % (len(strings), strings)
+                  if strings else "",
                   ", %d NOT AUDITED (register semantics unknown): %s" % (len(unknown), unknown)
                   if unknown else ""))
 
@@ -887,6 +939,187 @@ def fix_x301_repeat(lines: list[str], cp: int, log: list[str]) -> None:
 
 
 # --------------------------------------------------------------------------
+# F13 -- last RFID card UID (X275) -> Wallbox 'user' input
+# --------------------------------------------------------------------------
+
+RECT_RE = re.compile(
+    r'<C Type="([^"]+)"[^>]*?U="([^"]+)"[^>]*?Px="(-?\d+)" Py="(-?\d+)" Px2="(-?\d+)" Py2="(-?\d+)"'
+)
+
+
+def page_rects(text: str) -> list[tuple[str, str, int, int, int, int]]:
+    """[(type, uuid, x1, y1, x2, y2)] of every placed page object."""
+    return [
+        (m.group(1), m.group(2), int(m.group(3)), int(m.group(4)), int(m.group(5)), int(m.group(6)))
+        for m in RECT_RE.finditer(text)
+    ]
+
+
+def rects_overlap(a, b) -> bool:
+    return a[2] < b[4] and b[2] < a[4] and a[3] < b[5] and b[3] < a[5]
+
+
+def next_iname(lines: list[str], kind: str = "AMQ") -> str:
+    """The lowest unused internal name above every existing <kind><n>."""
+    used = [int(m) for ln in lines for m in re.findall(r'\bIName="%s(\d+)"' % kind, ln)]
+    return "%s%d" % (kind, (max(used) if used else 0) + 1)
+
+
+def input_ref_for(lines: list[str], sensor_u: str) -> int:
+    """Line of the InputRef page object that references the given sensor."""
+    return find_line(lines, 'Type="InputRef"', 'Ref="%s"' % sensor_u)
+
+
+def wallbox_for_cp(lines: list[str], cp: int) -> tuple[int, int]:
+    """(start, end) of the Wallbox block whose 'power' input is fed by this
+    charging point's Active Power (X244) InputRef -- the wiring is the
+    identity, not the title, so it works for 'Wallbox' and 'Wallbox CPn' alike."""
+    s = find_line(lines, 'Type="ModbusASensor"', 'ModbusAddress="%d244"' % cp)
+    r = input_ref_for(lines, attr(lines[s], "U"))
+    aq = connector_uuid(lines, r, block_end(lines, r), "AQ")
+    for w in (i for i, ln in enumerate(lines) if 'Type="Wallbox"' in ln):
+        wend = block_end(lines, w)
+        p = next((k for k in range(w, wend + 1) if '<Co K="power"' in lines[k]), None)
+        if p is None:
+            continue
+        pend = block_end(lines, p)
+        if any(attr(lines[k], "Input") == aq for k in range(p, pend + 1) if "<In Input=" in lines[k]):
+            return w, wend
+    raise SystemExit("no Wallbox block is fed by CP%d's Active Power InputRef" % cp)
+
+
+def rfid_wiring(lines: list[str], cp: int) -> tuple[int, int, str] | None:
+    """(sensor line, InputRef line, Wallbox 'user' <In Input> uuid or '') once
+    the X275 sensor exists; None when F13 has not been applied at all."""
+    s = find_line(lines, 'Type="ModbusASensor"', 'ModbusAddress="%d%d"' % (cp, RFID_REG), required=False)
+    if s < 0:
+        return None
+    r = find_line(lines, 'Type="InputRef"', 'Ref="%s"' % attr(lines[s], "U"), required=False)
+    w, wend = wallbox_for_cp(lines, cp)
+    u = next(k for k in range(w, wend + 1) if '<Co K="user"' in lines[k])
+    uend = block_end(lines, u)
+    fed = [attr(lines[k], "Input") for k in range(u, uend + 1) if "<In Input=" in lines[k]]
+    return s, r, fed[0] if fed else ""
+
+
+def fix_rfid_uid(lines: list[str], cp: int, prefix: str, log: list[str]) -> None:
+    """Read X275 as a Loxone String and wire it to the Wallbox block's Uid input.
+
+    Mirrors the existing Active Power path exactly: ModbusASensor under the
+    Modbus device -> InputRef on the Wallbox page -> the InputRef's AQ feeds the
+    Wallbox connector.  Read-only: FC03, no new write (X308 is inert, see the
+    RFID_* comment).  The sensor's numeric attributes (MinVal/MaxVal, scaling)
+    are cloned from the X299 Vehicle-status input for shape only; a String
+    value has no numeric range, and F7 treats X275 accordingly.
+    """
+    state = rfid_wiring(lines, cp)
+    if state is not None:
+        s, r, fed = state
+        assert r >= 0 and fed, (
+            "X%d%d exists but is only partly wired (InputRef %s, Wallbox user %r); "
+            "F13 will not repair a half-applied fix" % (cp, RFID_REG, r >= 0, fed)
+        )
+        assert attr(lines[s], "ModbusDataType") == RFID_DATATYPE and attr(lines[s], "ModbusCmd") == "3", (
+            "X%d%d present but not String/FC03" % (cp, RFID_REG)
+        )
+        log.append("F13 X%d%d last RFID card: already present and wired to the Wallbox 'user' input"
+                   % (cp, RFID_REG))
+        return
+
+    blob = NL.join(lines)
+
+    # -- sensor: clone the shape of the X299 Vehicle-status input -------------
+    src = find_line(lines, 'Type="ModbusASensor"', 'ModbusAddress="%d299"' % cp)
+    src_end = block_end(lines, src)
+    q_suffix = connector_uuid(lines, src, src_end, "Q").split("-", 3)[3]
+    qe_suffix = connector_uuid(lines, src, src_end, "Qe").split("-", 3)[3]
+    io_line = next(l for l in lines[src : src_end + 1] if "<IoData" in l).strip()
+    iname = next_iname(lines)
+    assert find_line(lines, 'IName="%s"' % iname, required=False) < 0, "IName %s already used" % iname
+    sens_u = mint(blob, cp, RFID_SEQ_BASE + 0x00, OBJ_SUFFIX)
+    sens_q = mint(blob, cp, RFID_SEQ_BASE + 0x01, q_suffix)
+    sens_qe = mint(blob, cp, RFID_SEQ_BASE + 0x02, qe_suffix)
+    full = prefix + RFID_TITLE
+    t = "\t" * indent_of(lines[src])
+    sensor_block = [
+        '%s<C Type="ModbusASensor" Desc="%s" IName="%s" V="172" U="%s" Title="%s" Nio="2" WF="16400" '
+        'ValOT="1" Analog="true" ModbusAddress="%d%d" ModbusDataType="%s" ModbusCmd="3" '
+        'ModbusPollingCycle="5" SourceValHigh="%s" DestValHigh="%s" MinVal="%s" MaxVal="%s" '
+        'MinChange="%s" MinTime="%s" MaxTime="%s">'
+        % (t, RFID_DESC, iname, sens_u, full, cp, RFID_REG, RFID_DATATYPE,
+           attr(lines[src], "SourceValHigh"), attr(lines[src], "DestValHigh"),
+           attr(lines[src], "MinVal"), attr(lines[src], "MaxVal"),
+           attr(lines[src], "MinChange"), attr(lines[src], "MinTime"), attr(lines[src], "MaxTime")),
+        '%s\t<Co K="Q" U="%s"/>' % (t, sens_q),
+        '%s\t<Co K="Qe" U="%s"/>' % (t, sens_qe),
+        "%s\t%s" % (t, io_line),
+        '%s\t<Display Type="2" Unit="&lt;v&gt;" StateOnly="true"/>' % t,   # text: no unit, no decimals
+        "%s</C>" % t,
+    ]
+    assert attr(sensor_block[0], "SourceValHigh") == attr(sensor_block[0], "DestValHigh"), "identity scaling"
+
+    # -- InputRef on the Wallbox page: same column as Active Power / Energy ----
+    src_ref = input_ref_for(lines, attr(lines[src], "U"))            # attribute shape from X299's
+    src_ref_end = block_end(lines, src_ref)
+    ref_suffix = {k: connector_uuid(lines, src_ref, src_ref_end, k).split("-", 3)[3]
+                  for k in ("AI", "I", "AQ", "Q")}
+    e = find_line(lines, 'Type="ModbusASensor"', 'ModbusAddress="%d250"' % cp)
+    col_ref = input_ref_for(lines, attr(lines[e], "U"))             # geometry: right below Energy
+    x1, x2 = int(attr(lines[col_ref], "Px")), int(attr(lines[col_ref], "Px2"))
+    y1 = int(attr(lines[col_ref], "Py2"))
+    y2 = y1 + int(attr(lines[col_ref], "Py2")) - int(attr(lines[col_ref], "Py"))
+    ref_u = mint(blob, cp, RFID_SEQ_BASE + 0x03, OBJ_SUFFIX)
+    ref_co = {k: mint(blob, cp, RFID_SEQ_BASE + 0x04 + i, ref_suffix[k])
+              for i, k in enumerate(("AI", "I", "AQ", "Q"))}
+    new_rect = ("InputRef", ref_u, x1, y1, x2, y2)
+    clash = [r for r in page_rects(blob) if rects_overlap(r, new_rect)]
+    assert not clash, "F13 InputRef slot %s overlaps %s" % (new_rect[2:], clash[:2])
+    p = "\t" * indent_of(lines[src_ref])
+    head = lines[src_ref].strip()
+    for name, val in (("U", ref_u), ("Title", full), ("Px", str(x1)), ("Py", str(y1)),
+                      ("Px2", str(x2)), ("Py2", str(y2)), ("Ref", sens_u)):
+        head = set_attr(head, name, val)
+    ref_block = [
+        p + head,
+        '%s\t<Co K="AI" Nc="1" U="%s">' % (p, ref_co["AI"]),
+        '%s\t\t<In Input="%s"/>' % (p, sens_q),
+        "%s\t</Co>" % p,
+        '%s\t<Co K="I" Nc="1" U="%s">' % (p, ref_co["I"]),
+        '%s\t\t<In Input="%s"/>' % (p, sens_qe),
+        "%s\t</Co>" % p,
+        '%s\t<Co K="AQ" U="%s"/>' % (p, ref_co["AQ"]),
+        '%s\t<Co K="Q" U="%s"/>' % (p, ref_co["Q"]),
+        "%s</C>" % p,
+    ]
+
+    # -- insert (sensor first; the page lives further down, so re-find) -------
+    lines[src_end + 1 : src_end + 1] = sensor_block
+    src_ref = input_ref_for(lines, attr(lines[src], "U"))
+    src_ref_end = block_end(lines, src_ref)
+    lines[src_ref_end + 1 : src_ref_end + 1] = ref_block
+
+    # -- Wallbox 'user' (Uid) input <- the InputRef's AQ ----------------------
+    w, wend = wallbox_for_cp(lines, cp)
+    u = next(k for k in range(w, wend + 1) if '<Co K="user"' in lines[k])
+    assert lines[u].rstrip().endswith("/>"), "Wallbox CP%d 'user' input is already wired: %s" % (cp, lines[u].strip())
+    user_u = attr(lines[u], "U")
+    wt = "\t" * indent_of(lines[u])
+    lines[u : u + 1] = [
+        '%s<Co K="user" Nc="1" U="%s">' % (wt, user_u),
+        '%s\t<In Input="%s"/>' % (wt, ref_co["AQ"]),
+        "%s</Co>" % wt,
+    ]
+    wtitle = attr(lines[w], "Title")
+
+    log.append(
+        "F13 X%d%d last RFID card: added ModbusASensor %s (String, FC03, poll 5 s) + InputRef at "
+        "(%d,%d)-(%d,%d) and wired its AQ to the '%s' block's 'user' (Uid) input -- no new write; "
+        "String register count to be confirmed in Loxone Config"
+        % (cp, RFID_REG, iname, x1, y1, x2, y2, wtitle)
+    )
+
+
+# --------------------------------------------------------------------------
 # verification
 # --------------------------------------------------------------------------
 
@@ -1008,21 +1241,46 @@ def verify(path: str, data: bytes) -> list[str]:
         chk(cp * 1000 + 306 in addrs and cp * 1000 + 307 in addrs, "X%d306/X%d307 present" % (cp, cp))
     out.append("  charging points detected: %d" % ncp)
 
-    rects = [
-        (m.group(1), m.group(2), int(m.group(3)), int(m.group(4)), int(m.group(5)), int(m.group(6)))
-        for m in re.finditer(
-            r'<C Type="([^"]+)"[^>]*?U="([^"]+)"[^>]*?Px="(-?\d+)" Py="(-?\d+)" Px2="(-?\d+)" Py2="(-?\d+)"',
-            text,
-        )
-    ]
+    rects = page_rects(text)
     chk(len(rects) == text.count(' Px="'), "all %d page rectangles parsed" % len(rects))
     overlaps = []
     for i in range(len(rects)):
         for j in range(i + 1, len(rects)):
             a, b = rects[i], rects[j]
-            if a[2] < b[4] and b[2] < a[4] and a[3] < b[5] and b[3] < a[5]:
+            if rects_overlap(a, b):
                 overlaps.append((a[0], a[1], b[0], b[1]))
     chk(not overlaps, "page-rectangle overlaps: %d %s" % (len(overlaps), overlaps[:3]))
+
+    # F13 -- every charging point reads X275 as a String and its Wallbox block's
+    # 'user' (Uid) input is fed by exactly that sensor's InputRef, and by nothing
+    # else; the Wallbox is identified by its 'power' wiring, so a CP1 sensor
+    # feeding the CP2 block would be caught too.
+    cps = sorted({a // 1000 for a in addrs})
+    rfid = []
+    for cp in cps:
+        try:
+            s = find_line(vlines, 'Type="ModbusASensor"', 'ModbusAddress="%d%d"' % (cp, RFID_REG))
+            typed = attr(vlines[s], "ModbusDataType") == RFID_DATATYPE and attr(vlines[s], "ModbusCmd") == "3"
+            r = find_line(vlines, 'Type="InputRef"', 'Ref="%s"' % attr(vlines[s], "U"))
+            aq = connector_uuid(vlines, r, block_end(vlines, r), "AQ")
+            w, wend = wallbox_for_cp(vlines, cp)
+            u = next(k for k in range(w, wend + 1) if '<Co K="user"' in vlines[k])
+            uend = block_end(vlines, u)
+            fed = [attr(vlines[k], "Input") for k in range(u, uend + 1) if "<In Input=" in vlines[k]]
+            wired = fed == [aq] and attr(vlines[u], "Nc") == "1"
+            rfid.append((cp, typed, wired, attr(vlines[w], "Title")))
+        except SystemExit as e:
+            rfid.append((cp, False, False, str(e)))
+    chk(bool(rfid) and all(t and wd for _, t, wd, _ in rfid),
+        "F13 X275 last RFID card: String/FC03 sensor + InputRef feeding the Wallbox 'user' (Uid) "
+        "input on all %d charging point(s): %s"
+        % (len(cps), ["CP%d %s: type %s, wired %s" % (cp, ttl, t, wd) for cp, t, wd, ttl in rfid]))
+    nwb = len(re.findall(r'<C Type="Wallbox"', text))
+    chk(nwb == len(cps), "one Wallbox block per charging point: %d block(s), %d point(s)" % (nwb, len(cps)))
+    x275_writes = [ln for ln in vlines if 'Type="ModbusAActor"' in ln
+                   and re.search(r'\bModbusAddress="\d(275|308)"', ln)]
+    chk(not x275_writes, "no write to X275/X308 (RFID register is read-only, X308 reset is inert): %d"
+        % len(x275_writes))
 
     out.insert(0, "verify %s (%d bytes): %s" % (path, len(data), "PASS" if ok else "FAIL"))
     return out if ok else out + ["  >>> VERIFICATION FAILED <<<"]
@@ -1049,6 +1307,7 @@ def process(path: str, check_only: bool = False) -> bool:
             fix_pause(lines, cp, prefix, log)
             fix_x301_repeat(lines, cp, log)
             fix_watchdog(lines, cp, prefix, log)
+            fix_rfid_uid(lines, cp, prefix, log)
 
     before = open(path, "rb").read()
     data = (BOM + NL.join(lines)).encode("utf-8")
