@@ -234,20 +234,37 @@ See the internal handbook's seams page.
 - **X275 (last RFID card) is sticky, X308 is inert, and the String register count is
   unverified in Config.** X275 holds the UID of the card *last presented* as ASCII (10
   holding registers on the charger, big-endian, NUL-padded; 14 hex characters for a 7-byte
-  card) and keeps it until the next tap — verified on production chargers (firmware 1.7.3,
-  OCPP release mode) against the charger's own RFID events, populated in every release mode.
-  Consequences: at plug-in the Wallbox block first sees the *previous* card and only
-  reassigns the session on the next tap (and only to a Loxone user with a *User ID*); an
-  app/remote start without a tap inherits the previous card. X308 ("reset last RFID", write
-  > 0) was **measured inert** on that firmware (acknowledged, X275 unchanged) — so it is
-  **deliberately not written**, and `--check` fails on any actuator at X275/X308. Loxone's
-  attribute vocabulary has **no string-length attribute**, so how many registers Config
-  reads for `ModbusDataType="101"` is **unverified**: the simulator's 10-word decode is
-  what the charger exposes, not what Loxone reads. Do: keep the input read-only, keep the
-  README "confirm in Loxone Config" note, tell users to set *User ID* to what the input
-  actually shows. Don't: add an X308 write, invent a length attribute, claim the 14
-  characters are verified on the Loxone side, or "fix" the F7 `"string"` marker into a
-  numeric range.
+  card) and keeps it until the next tap — verified on production chargers in **OCPP release
+  mode** (firmware 1.7.3) against the charger's own RFID events; Modbus, Always and other
+  release modes and firmware 1.9.x were **not** measured (a unit in Always mode read empty
+  because no card had been presented). X275 only *changes* when a **different** card is
+  tapped — the same card twice produces no change, so a single-driver household shows a
+  constant Uid after the first tap; whether the Wallbox block attributes each session from
+  the standing Uid (sampled at session start) or only reacts to a Uid change is unverified
+  on the Loxone side (README gives the two-session/two-card recipe). *If* the block samples
+  Uid: at plug-in it first sees the *previous* card and only reassigns the session on the
+  next tap (and only to a Loxone user with a *User ID*); an app/remote start without a tap
+  inherits the previous card, and the block's cost outputs follow the Uid. X308 ("reset last
+  RFID", write > 0) was **measured inert on firmware 1.7.3** (acknowledged, X275 unchanged;
+  not re-tested on 1.9.x) — so it is **deliberately not written**, and `--check` fails on
+  any actuator at X275/X308. Loxone's attribute vocabulary has **no string-length
+  attribute**, so how many registers Config reads for `ModbusDataType="101"` is
+  **unverified**: the simulator's 10-word decode is what the charger exposes, not what
+  Loxone reads; a read longer than 10 spills into X285–X294 (extra characters after the
+  UID, or the input offline on a Modbus exception). **F13's sensor shape is cloned, not
+  designed:** `MinVal/MaxVal/MinChange/MinTime/MaxTime/SourceValHigh/DestValHigh`, `ValOT`,
+  the InputRef's `Analog="true"`/`LinkRefType="153"` and `Display Unit="<v>"` are copied
+  from the analog X299 sensor for *shape only*; their effect on a String input is
+  unverified (worst case: a numeric `MinChange` parse suppresses updates between similar
+  UIDs). The right fix is to create one String Modbus input in Loxone Config, save, diff
+  what Config writes, and adopt that shape in F13. Config checklist (also in README
+  "confirm in Loxone Config"): String connector shown as text; `user` wire survives
+  save/reload; value shows the full UID; two similar cards both propagate; the same card
+  twice attributes both sessions. Do: keep the input read-only, keep the README note, tell
+  users to set *User ID* to what the input actually shows, keep the privacy note (the UID
+  is personal data and, with a whitelist, the credential). Don't: add an X308 write, invent
+  a length attribute, claim the 14 characters are verified on the Loxone side, claim X275
+  is populated in every release mode, or "fix" the F7 `"string"` marker into a numeric range.
 - `docs/images/wallbox-preview.svg` is a **mockup**, not a screenshot (README says so). Do not
   present it as the real Loxone UI.
 - `Veton.Loxone` is 130 KB of generated XML with GUIDs — review diffs semantically (which

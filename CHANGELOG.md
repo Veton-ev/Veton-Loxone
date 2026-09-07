@@ -20,12 +20,21 @@ dated instead of numbered.
   verifies it as **F13**; `tools/simulate-project.py` checks the sensor → InputRef
   → Wallbox `user` wiring and pushes canned registers through it offline.
   Caveats, all in README [*RFID card → Wallbox Uid*](README.md#rfid-card--wallbox-uid-user-attribution):
-  each Loxone user's *User ID* must equal the card UID as the input shows it;
-  `X275` is **sticky** (the previous card stays until the next tap, so an
-  app/remote start inherits it); the `X308` reset register was measured inert
-  on the current firmware and is deliberately not written; and how many
-  registers Loxone reads for a String is undocumented — confirm in Loxone
-  Config that the full 14-character UID shows.
+  each Loxone user's *User ID* must equal the card UID exactly as the input
+  shows it (uppercase hex, no separators); the register was verified in OCPP
+  release mode on firmware 1.7.3 only (Modbus/Always/other release modes and
+  1.9.x not measured); `X275` is **sticky** and only changes on a *different*
+  card (the same card twice = no change; whether the block samples the
+  standing Uid per session or only reacts to a change is unverified on the
+  Loxone side — README gives the recipe), so an app/remote start may inherit
+  the previous card, and the block's cost outputs follow the Uid; the `X308`
+  reset register was measured inert on firmware 1.7.3 (not re-tested on
+  1.9.x) and is deliberately not written; how many registers Loxone reads for
+  a String is undocumented — confirm in Loxone Config that exactly the
+  14-character UID shows (fewer = short read, extra characters = a spill into
+  `X285`–`X294`). Privacy: the UID is personal data and, with a CHARX
+  whitelist, the authorisation credential — it lands in the visualisation,
+  the charge log and Miniserver statistics; hide the input from non-admin users.
 
 ## 2026-09-04
 

@@ -258,37 +258,77 @@ NUL-padded — 14 hex characters for a 7-byte card (`04A1B2C3D4E5F6`), 8 for a
 4-byte card. It is read every 5 s as a Loxone **String** input
 (`ModbusDataType="101"`, plain FC03, nothing is written) and wired straight
 to the Wallbox block's **Uid (User ID)** input in both projects. That is what
-attributes a session to a person: the block's charge log records the Uid,
-its own `Uid` output echoes it, and the app's history shows who charged.
+should attribute a session to a person: the block's charge log records the
+Uid, its own `Uid` output echoes it, and the app's history should then show
+who charged (see Loxone's [Wallbox block](https://www.loxone.com/enus/kb/wallbox-block/)
+documentation). The block's **price/cost outputs and charge log follow the
+Uid** as well, so a mis-attributed session is also *priced* under that card
+holder — this matters on shared or tenant chargers.
 
-To make it match, give each Loxone user a **User ID** equal to that person's
-card UID exactly as the *Last RFID card* input shows it (the *User ID* property
-of the user in Loxone Config). Per Loxone's documentation a session is reassigned
-to a driver who taps while the car is already plugged in **only if that user
-has a valid User ID set**; drivers without one are logged as whoever the
-block already held.
+To make it match, give each Loxone user a **User ID** typed exactly as the
+*Last RFID card* input shows it: uppercase hex, no separators (`1A9998DA`,
+`04A1B2C3D4E5F6`; see the user's properties in Loxone Config). Note:
+
+- A 4-byte card gives 8 characters, a 7-byte card 14 — one person with two
+  cards needs the Uid matched per card (one Loxone user per card, or a Uid
+  mapping in front of the block).
+- The NFC tags stored on a Loxone user are **not** what the Wallbox block
+  matches on; only the *User ID* property is.
+- Whether the match is case-sensitive is unverified — use uppercase, as the
+  input shows it.
+- Per Loxone's documentation a session is reassigned to a driver who taps
+  while the car is already plugged in **only if that user has a valid User
+  ID set**; drivers without one are logged as whoever the block already held.
+
+**Privacy / security.** The card UID is personal data and, on a CHARX with a
+UID whitelist, it is the authorisation credential itself. The input sits on
+the Wallbox visualisation page and the UID lands in the block's `Uid` output,
+the charge log and the Miniserver statistics — visible to every Loxone user
+with access to that page. Remove the input from the visualisation for
+non-admin users, and be aware that the Miniserver retains the UID in its
+logs/statistics.
 
 What is measured and what is not:
 
-- The register contents were verified on production chargers (firmware
-  1.7.3, release mode OCPP) against the charger's own RFID event stream, and
-  X275 is populated in every release mode.
-- `X275` is **sticky**: it keeps the previous card until the next tap. So at
-  plug-in the block first sees the *previous* driver; once the new driver
-  taps, the Uid changes and Loxone reassigns the session (User ID permitting).
-  A session started **without a tap** — from the Veton app or remotely —
-  inherits the previous card and is attributed to that person.
-- The CHARX has a "reset last RFID" register (`X308`, write > 0). On the
-  current firmware it was **measured inert** (write acknowledged, `X275`
-  unchanged), so this project deliberately does not write it; the sticky
-  behaviour above is what you get.
+- The register contents were verified on production chargers in **OCPP
+  release mode** (firmware 1.7.3) against the charger's own RFID event stream.
+  Modbus, Always and the other release modes, and firmware 1.9.x, were **not**
+  measured — a unit in Always mode read empty because no card had ever been
+  presented to it.
+- `X275` is **sticky**, and it only changes when a **different** card is
+  tapped: the same driver tapping the same card produces no change at all, so
+  in a single-driver household the Uid text is constant after the first tap.
+  Whether the Wallbox block attributes each new session from the *standing*
+  Uid value (sampled at session start) or only reacts to a *change* of Uid is
+  **not verified** on the Loxone side. *If* the block samples Uid, the
+  expected behaviour is: at plug-in the block first sees the *previous* card;
+  once the new driver taps, the Uid changes and Loxone reassigns the session
+  (User ID permitting); a session started **without a tap** — from the Veton
+  app or remotely — inherits the previous card and is attributed (and priced)
+  to that person. Verify it: in Loxone Config with a charger, tap the same card
+  for two consecutive sessions and read the charge log (`Lcl`) — both sessions
+  should carry that card; then tap two cards that differ only in their last
+  characters and confirm both propagate.
+- The CHARX has a "reset last RFID" register (`X308`, write > 0). It was
+  **measured inert on firmware 1.7.3** (write acknowledged, `X275` unchanged;
+  not re-tested on 1.9.x), so this project deliberately does not write it; the
+  sticky behaviour above is what you get.
 - **Confirm the register count in Loxone Config.** Loxone has no attribute
   for the length of a String input, so how many registers it reads is not
   documented. Open the project against a charger and look at the *Last RFID
-  card* value: the full 14 characters of a 7-byte card means it reads enough;
-  fewer characters means Loxone reads fewer registers — the leading
-  characters are still card-specific and usable as a User ID, but set the
-  users' IDs to what the input actually shows.
+  card* value. The full 14 characters of a 7-byte card means it reads enough.
+  Fewer characters means Loxone reads fewer registers — the shortened value
+  may not be unique (the first byte of a 7-byte NXP card is always `04`), so
+  check for collisions and set the users' IDs to what the input actually
+  shows. *More* than 10 registers spills the read into `X285`–`X294`
+  (connection time, energy, error bitfield): the symptom is characters
+  appended after the UID, so the value never equals the card and User ID
+  matching fails, or the input going offline (Modbus exception) if the span
+  crosses an unmapped address. In both cases the sensor needs a shorter read
+  — please report it. While you are there, run the checklist compactly: the
+  String connector shows as text; the `user` wire survives save/reload; the
+  value shows the full UID; two similar cards both propagate; the same card
+  twice attributes both sessions.
 
 ## Setpoint: three-phase (default) vs single-phase (`mono`)
 
