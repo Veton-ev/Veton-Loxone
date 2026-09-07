@@ -162,17 +162,25 @@ WATCHDOG = [
 ]
 # internal names for the minted Modbus actuators; CP1 -> AMQ60/61, CP2 -> AMQ62/63
 INAME_BASE = 60
+# internal name for the F13 X275 sensor: a fixed base clear of F6's block
+# (CP1 -> AMQ70, CP2 -> AMQ71).  It used to be max(existing AMQ<n>)+1, which on a
+# fresh export -- per-CP order F6 -> F13 -- gave CP1's F13 AMQ62 and made CP2's
+# F6 abort on its "unused" assertion.
+RFID_INAME_BASE = 70
 
 # F13 -- last RFID card UID.  CHARX register X275 (per charging point: 1275,
 # 2275, ... like the existing 1232/1299 inputs): FC03 holding registers, 10
 # words of big-endian ASCII, NUL-padded, holding the UID of the last card
 # presented -- e.g. 14 hex characters for a 7-byte card, 8 for a 4-byte card.
-# Measured byte-identical against the charger's own RFID event stream on a
-# production fleet (firmware 1.7.3, release mode OCPP); populated in every
-# release mode, so no mode gate.  It is STICKY: it keeps the previous card
-# until the next tap.  X308 ("reset last RFID") was measured INERT on that
-# firmware (write acknowledged, X275 unchanged), so no reset write is added
-# and this fix adds NO Modbus write at all.
+# Measured byte-identical against the charger's own RFID event stream on
+# production chargers in OCPP release mode (firmware 1.7.3); Modbus, Always
+# and the other release modes and firmware 1.9.x were NOT measured (a unit in
+# Always mode read empty because no card had been presented).  It is STICKY:
+# it keeps the previous card until the next tap, and it only CHANGES when a
+# DIFFERENT card is tapped -- the same card twice produces no change at all.
+# X308 ("reset last RFID") was measured INERT on firmware 1.7.3 (write
+# acknowledged, X275 unchanged; not re-tested on 1.9.x), so no reset write is
+# added and this fix adds NO Modbus write at all.
 #
 # Loxone Config's Modbus analogue data-type list (Config 17's own resource
 # strings) is, in order: 16-bit Unsigned, 16-bit Signed, 32-bit Unsigned,
@@ -184,15 +192,20 @@ INAME_BASE = 60
 # ModbusDataType, ModbusPollingCycle, ModbusCoilQuantity, ModbusID), so none
 # is invented here.  TO CONFIRM in Loxone Config: the input should show the
 # full 14-character UID of a 7-byte card; fewer characters means Config reads
-# fewer registers.
+# fewer registers; MORE than 10 registers spills into X285-X294 (connection
+# time, energy, error bitfield) -- extra characters after the UID, or the
+# input offline on a Modbus exception -- and needs a shorter read.  Either
+# way: report it.
 RFID_REG = 275
 RFID_TITLE = "Last RFID card"
 RFID_DATATYPE = "101"          # String
 RFID_DESC = ("Last RFID card UID as ASCII text (CHARX X%d: 10 holding registers, big-endian, "
              "NUL-padded; 14 hex characters for a 7-byte card). Sticky: keeps the previous card "
-             "until the next tap. TO CONFIRM in Loxone Config: how many registers the String "
-             "data type reads - the value should show the full 14 characters; fewer means "
-             "fewer registers are read." % RFID_REG)
+             "until a DIFFERENT card is tapped (same card again = no change). Verified in OCPP "
+             "release mode on firmware 1.7.3 only. TO CONFIRM in Loxone Config: how many registers "
+             "the String data type reads - the value should show exactly the 14 characters; fewer "
+             "means fewer registers are read, extra characters after the UID (or the input offline) "
+             "mean more than 10 and a spill into X285-X294 - report either." % RFID_REG)
 # mint() sequence numbers used by F13 (F6 uses 0x00..0x1B per charging point)
 RFID_SEQ_BASE = 0x20
 
@@ -959,12 +972,6 @@ def rects_overlap(a, b) -> bool:
     return a[2] < b[4] and b[2] < a[4] and a[3] < b[5] and b[3] < a[5]
 
 
-def next_iname(lines: list[str], kind: str = "AMQ") -> str:
-    """The lowest unused internal name above every existing <kind><n>."""
-    used = [int(m) for ln in lines for m in re.findall(r'\bIName="%s(\d+)"' % kind, ln)]
-    return "%s%d" % (kind, (max(used) if used else 0) + 1)
-
-
 def input_ref_for(lines: list[str], sensor_u: str) -> int:
     """Line of the InputRef page object that references the given sensor."""
     return find_line(lines, 'Type="InputRef"', 'Ref="%s"' % sensor_u)
@@ -988,18 +995,20 @@ def wallbox_for_cp(lines: list[str], cp: int) -> tuple[int, int]:
     raise SystemExit("no Wallbox block is fed by CP%d's Active Power InputRef" % cp)
 
 
-def rfid_wiring(lines: list[str], cp: int) -> tuple[int, int, str] | None:
-    """(sensor line, InputRef line, Wallbox 'user' <In Input> uuid or '') once
-    the X275 sensor exists; None when F13 has not been applied at all."""
+def rfid_wiring(lines: list[str], cp: int) -> tuple[int, int, str, list[str]] | None:
+    """(sensor line, InputRef line or -1, that InputRef's AQ uuid or '', every
+    uuid feeding the Wallbox 'user' input) once the X275 sensor exists; None
+    when F13 has not been applied at all."""
     s = find_line(lines, 'Type="ModbusASensor"', 'ModbusAddress="%d%d"' % (cp, RFID_REG), required=False)
     if s < 0:
         return None
     r = find_line(lines, 'Type="InputRef"', 'Ref="%s"' % attr(lines[s], "U"), required=False)
+    aq = connector_uuid(lines, r, block_end(lines, r), "AQ") if r >= 0 else ""
     w, wend = wallbox_for_cp(lines, cp)
     u = next(k for k in range(w, wend + 1) if '<Co K="user"' in lines[k])
     uend = block_end(lines, u)
     fed = [attr(lines[k], "Input") for k in range(u, uend + 1) if "<In Input=" in lines[k]]
-    return s, r, fed[0] if fed else ""
+    return s, r, aq, fed
 
 
 def fix_rfid_uid(lines: list[str], cp: int, prefix: str, log: list[str]) -> None:
@@ -1014,14 +1023,18 @@ def fix_rfid_uid(lines: list[str], cp: int, prefix: str, log: list[str]) -> None
     """
     state = rfid_wiring(lines, cp)
     if state is not None:
-        s, r, fed = state
-        assert r >= 0 and fed, (
-            "X%d%d exists but is only partly wired (InputRef %s, Wallbox user %r); "
-            "F13 will not repair a half-applied fix" % (cp, RFID_REG, r >= 0, fed)
-        )
-        assert attr(lines[s], "ModbusDataType") == RFID_DATATYPE and attr(lines[s], "ModbusCmd") == "3", (
-            "X%d%d present but not String/FC03" % (cp, RFID_REG)
-        )
+        s, r, aq, fed = state
+        if r < 0:
+            raise SystemExit(
+                "X%d%d exists but has no InputRef on the Wallbox page; F13 will not repair a "
+                "half-applied fix -- remove the sensor and re-run" % (cp, RFID_REG))
+        if fed != [aq]:
+            raise SystemExit(
+                "X%d%d exists but the Wallbox CP%d 'user' (Uid) input is fed by %r, not solely by "
+                "that InputRef's AQ %s; F13 will not repair a half-applied fix -- fix the wiring "
+                "and re-run" % (cp, RFID_REG, cp, fed, aq))
+        if not (attr(lines[s], "ModbusDataType") == RFID_DATATYPE and attr(lines[s], "ModbusCmd") == "3"):
+            raise SystemExit("X%d%d present but not String/FC03" % (cp, RFID_REG))
         log.append("F13 X%d%d last RFID card: already present and wired to the Wallbox 'user' input"
                    % (cp, RFID_REG))
         return
@@ -1034,7 +1047,7 @@ def fix_rfid_uid(lines: list[str], cp: int, prefix: str, log: list[str]) -> None
     q_suffix = connector_uuid(lines, src, src_end, "Q").split("-", 3)[3]
     qe_suffix = connector_uuid(lines, src, src_end, "Qe").split("-", 3)[3]
     io_line = next(l for l in lines[src : src_end + 1] if "<IoData" in l).strip()
-    iname = next_iname(lines)
+    iname = "AMQ%d" % (RFID_INAME_BASE + cp - 1)
     assert find_line(lines, 'IName="%s"' % iname, required=False) < 0, "IName %s already used" % iname
     sens_u = mint(blob, cp, RFID_SEQ_BASE + 0x00, OBJ_SUFFIX)
     sens_q = mint(blob, cp, RFID_SEQ_BASE + 0x01, q_suffix)

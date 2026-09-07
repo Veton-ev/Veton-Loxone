@@ -1256,7 +1256,12 @@ def run_project(path: pathlib.Path, args, sim: Sim, A: Asserts) -> None:
                        and o.attrs.get("ModbusAddress") == str(addr)), None)
         wb = wb_by_cp.get(cp)
         # a distinct tag per CP, so CP2's input carrying CP1's tag is visible
-        tag_by_cp[cp] = rfid_tag[:-2] + f"{(int(rfid_tag[-2:], 16) + cp - 1) & 0xFF:02X}"
+        try:
+            tag_by_cp[cp] = rfid_tag[:-2] + f"{(int(rfid_tag[-2:], 16) + cp - 1) & 0xFF:02X}"
+        except ValueError:                      # non-hex --scenarios "rfid ..." tag
+            print(f"  NOTE: --scenarios rfid tag {rfid_tag!r} is not hex; using the default tag")
+            rfid_tag = "04A1B2C3D4E5F6"
+            tag_by_cp[cp] = rfid_tag[:-2] + f"{(int(rfid_tag[-2:], 16) + cp - 1) & 0xFF:02X}"
         canned[addr] = encode_string(tag_by_cp[cp])
         wired = ""
         ok = sensor is not None and wb is not None
