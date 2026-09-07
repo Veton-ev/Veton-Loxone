@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format follows
 This repository has never been tagged with a version number, so entries are
 dated instead of numbered.
 
+## 2026-09-07
+
+### Added
+
+- **The last RFID card is read and fed to the Wallbox block's Uid input**, so a
+  charging session is attributed to the card holder in the block's charge log.
+  A new *Last RFID card* input reads CHARX `X275` (the UID of the card last
+  presented, ASCII text, 10 holding registers on the charger) every 5 s as a
+  Loxone **String** (`ModbusDataType="101"`, FC03 — nothing new is written) in
+  both projects (`1275` / `2275`, one per charging point, on that point's own
+  Wallbox block) and both templates. `tools/fix-loxone-project.py` applies and
+  verifies it as **F13**; `tools/simulate-project.py` checks the sensor → InputRef
+  → Wallbox `user` wiring and pushes canned registers through it offline.
+  Caveats, all in README [*RFID card → Wallbox Uid*](README.md#rfid-card--wallbox-uid-user-attribution):
+  each Loxone user's *User ID* must equal the card UID as the input shows it;
+  `X275` is **sticky** (the previous card stays until the next tap, so an
+  app/remote start inherits it); the `X308` reset register was measured inert
+  on the current firmware and is deliberately not written; and how many
+  registers Loxone reads for a String is undocumented — confirm in Loxone
+  Config that the full 14-character UID shows.
+
 ## 2026-09-04
 
 ### Fixed
