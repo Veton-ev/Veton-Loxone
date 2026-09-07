@@ -264,7 +264,7 @@ See the internal handbook's seams page.
   users to set *User ID* to what the input actually shows, keep the privacy note (the UID
   is personal data and, with a whitelist, the credential). Don't: add an X308 write, invent
   a length attribute, claim the 14 characters are verified on the Loxone side, claim X275
-  is populated in every release mode, or "fix" the F7 `"string"` marker into a numeric range.
+  is populated regardless of release mode, or "fix" the F7 `"string"` marker into a numeric range.
 - `docs/images/wallbox-preview.svg` is a **mockup**, not a screenshot (README says so). Do not
   present it as the real Loxone UI.
 - `Veton.Loxone` is 130 KB of generated XML with GUIDs — review diffs semantically (which
