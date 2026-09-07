@@ -35,8 +35,12 @@ WHAT IT DOES NOT PROVE  (read this before trusting a green run)
     load-shedding, session handling and the actual kW it asks for are
     entirely outside this harness.
   * It does NOT prove `ModbusDataType="101"` (String) really reads a string,
-    nor how many registers Loxone reads for one -- neither project uses a
-    string input; the decoder here is a guess with a fixed word count.
+    nor how many registers Loxone reads for one.  Both projects now use it
+    (the "Last RFID card" input on X275, wired to the Wallbox block's Uid
+    input).  The decoder here reads the 10 words the CHARX exposes on X275;
+    Loxone's own register count for a String is UNVERIFIED -- confirm in
+    Loxone Config that the input shows the full 14-character UID of a 7-byte
+    card.
   * It does NOT prove Loxone's byte/word order matches ours (big-endian,
     high word first).  No project attribute states it; it matched the real
     charger's data, which is the only evidence we have.
@@ -98,7 +102,8 @@ DATATYPES = [
     ("u32", 2),   # 98
     ("s32", 2),   # 99
     ("f32", 2),   # 100
-    ("string", 10),  # 101  <- word count is a GUESS, see module docstring
+    ("string", 10),  # 101  <- 10 = what the CHARX exposes on X275; what Loxone
+                     #        actually reads for a String is UNVERIFIED (docstring)
     ("u64", 4),   # 102
     ("s64", 4),   # 103
     ("f64", 4),   # 104
@@ -400,7 +405,7 @@ REQUIRED_INPUTS = {
     "State": ["I1"],
 }
 # Inputs the Veton design is *supposed* to drive (softer than required).
-EXPECTED_INPUTS = {"Wallbox": ["connected", "power", "energy", "active"]}
+EXPECTED_INPUTS = {"Wallbox": ["connected", "power", "energy", "active", "user"]}
 
 
 @dataclass
@@ -682,6 +687,28 @@ class Reader:
             self.client.close()
 
 
+class CannedReader(Reader):
+    """Offline reader answering from a {address: [words]} table -- how the
+    static run exercises the X275 -> Wallbox Uid path without a Modbus
+    device.  Every address not in the table reads as offline (None)."""
+
+    def __init__(self, canned: Dict[int, List[int]]):
+        super().__init__("", 0, 0, offline=True)
+        self.canned = canned
+
+    def read(self, addr: int, count: int) -> Optional[List[int]]:
+        words = self.canned.get(addr)
+        if words is None:
+            return None
+        return (list(words) + [0] * count)[:count]
+
+
+def encode_string(text: str, words: int = 10) -> List[int]:
+    """ASCII -> big-endian, NUL-padded holding registers (the X275 layout)."""
+    raw = text.encode("ascii").ljust(2 * words, b"\x00")[: 2 * words]
+    return [struct.unpack(">H", raw[i : i + 2])[0] for i in range(0, len(raw), 2)]
+
+
 # ---------------------------------------------------------------------------
 # 7.  Evaluation
 # ---------------------------------------------------------------------------
@@ -724,8 +751,8 @@ def read_sensors(objs: List[Obj], rdr: Reader) -> Dict[str, SensorRead]:
 
 @dataclass
 class EvalResult:
-    values: Dict[str, Optional[float]]                  # connector uuid -> value
-    wallbox_inputs: Dict[str, Dict[str, Optional[float]]]   # wallbox title -> {key: value}
+    values: Dict[str, Any]                              # connector uuid -> value (float or str)
+    wallbox_inputs: Dict[str, Dict[str, Any]]           # wallbox title -> {key: value}
     writes: List[Dict[str, Any]]                        # what would go on the wire
     notes: List[str]
 
@@ -743,17 +770,18 @@ def evaluate(objs: List[Obj], conn_index, reads: Dict[str, SensorRead],
     the only way to see a cross-wired project: with one shared value, a
     'CP2 3 fase' that reads Wallbox CP1's outLimit writes exactly what a
     correctly wired one would."""
-    vals: Dict[str, Optional[float]] = {}
+    vals: Dict[str, Any] = {}
     notes: List[str] = []
 
-    # seed: sensors
+    # seed: sensors.  A String sensor (X275) has no numeric value; its
+    # decoded text travels the wires as-is (InputRef AI -> AQ -> Wallbox user).
     for o in objs:
         if o.uuid in reads:
             r = reads[o.uuid]
             q = o.conn("Q")
             qe = o.conn("Qe")
             if q:
-                vals[q.uuid] = r.value
+                vals[q.uuid] = r.raw if isinstance(r.raw, str) else r.value
             if qe:
                 vals[qe.uuid] = 0.0 if r.words is not None else 1.0
 
@@ -766,7 +794,7 @@ def evaluate(objs: List[Obj], conn_index, reads: Dict[str, SensorRead],
             if outlimit_by_wallbox and wb.uuid in outlimit_by_wallbox:
                 vals[c.uuid] = outlimit_by_wallbox[wb.uuid]
 
-    def src_val(conn: Conn) -> Optional[float]:
+    def src_val(conn: Conn) -> Any:
         if not conn.sources:
             return None
         v = vals.get(conn.sources[0])
@@ -778,7 +806,7 @@ def evaluate(objs: List[Obj], conn_index, reads: Dict[str, SensorRead],
     for _ in range(len(objs) + 2):
         changed = False
 
-        def put(conn: Optional[Conn], v: Optional[float]):
+        def put(conn: Optional[Conn], v: Any):
             nonlocal changed
             if conn is None:
                 return
@@ -812,10 +840,10 @@ def evaluate(objs: List[Obj], conn_index, reads: Dict[str, SensorRead],
             break
 
     # wallbox inputs
-    wb_in: Dict[str, Dict[str, Optional[float]]] = {}
+    wb_in: Dict[str, Dict[str, Any]] = {}
     for wb in wallboxes:
         d = {}
-        for key in ("allow", "prio", "connected", "power", "energy", "active"):
+        for key in ("allow", "prio", "connected", "power", "energy", "active", "user"):
             c = wb.conn(key)
             d[key] = src_val(c) if c else None
         wb_in[wb.title or wb.uuid] = d
@@ -1210,6 +1238,71 @@ def run_project(path: pathlib.Path, args, sim: Sim, A: Asserts) -> None:
     print("        expires and the charger drops to the X306 fallback (or, if X306 was")
     print("        never written either, to whatever it already held).")
 
+    # ---- 11f'. last RFID card (X275) -> Wallbox 'user' (Uid) ---------------
+    # Static: per CP, the X275 sensor is a String/FC03 input, an InputRef
+    # carries its Q, and that InputRef's AQ is the ONLY source of the Wallbox
+    # block's 'user' input.  Then canned registers (a different tag per CP)
+    # go through decode -> evaluate() and must come out on the right block --
+    # this is how the rfid path is exercised with no Modbus device at all.
+    head(f"{tag}: LAST RFID CARD (X275) -> WALLBOX Uid")
+    rfid_tag = next((sc.split(None, 1)[1].strip().upper() for sc in args.scenarios
+                     if sc.startswith("rfid") and " " in sc), "04A1B2C3D4E5F6")
+    canned: Dict[int, List[int]] = {}
+    tag_by_cp: Dict[int, str] = {}
+    rf_rows, rf_ok, rf_detail = [], True, []
+    for cp in (cps or [1]):
+        addr = cp * 1000 + 275
+        sensor = next((o for o in objs if o.type == "ModbusASensor"
+                       and o.attrs.get("ModbusAddress") == str(addr)), None)
+        wb = wb_by_cp.get(cp)
+        # a distinct tag per CP, so CP2's input carrying CP1's tag is visible
+        try:
+            tag_by_cp[cp] = rfid_tag[:-2] + f"{(int(rfid_tag[-2:], 16) + cp - 1) & 0xFF:02X}"
+        except ValueError:                      # non-hex --scenarios "rfid ..." tag
+            print(f"  NOTE: --scenarios rfid tag {rfid_tag!r} is not hex; using the default tag")
+            rfid_tag = "04A1B2C3D4E5F6"
+            tag_by_cp[cp] = rfid_tag[:-2] + f"{(int(rfid_tag[-2:], 16) + cp - 1) & 0xFF:02X}"
+        canned[addr] = encode_string(tag_by_cp[cp])
+        wired = ""
+        ok = sensor is not None and wb is not None
+        if ok:
+            code, dname, _ = datatype_of(sensor.attrs.get("ModbusDataType"))
+            ok &= code == 101 and sensor.attrs.get("ModbusCmd") == "3"
+            q = sensor.conn("Q")
+            user = wb.conn("user")
+            refs = [o for o in objs if o.type == "InputRef" and o.conn("AI")
+                    and q and q.uuid in o.conn("AI").sources]
+            ok &= len(refs) == 1 and user is not None and len(user.sources) == 1
+            if ok:
+                aq = refs[0].conn("AQ")
+                ok &= aq is not None and user.sources == [aq.uuid]
+            wired = (f"{dname} FC{sensor.attrs.get('ModbusCmd', '?')} -> "
+                     f"{len(refs)} InputRef -> {wb.title}.user "
+                     f"<- {len(user.sources) if user else 0} source(s)")
+        rf_ok &= ok
+        rf_rows.append([f"CP{cp}", addr, sensor.title if sensor else "NO SENSOR",
+                        wb.title if wb else "NO WALLBOX", wired, "OK" if ok else "BROKEN"])
+        if not ok:
+            rf_detail.append(f"CP{cp}: {wired or 'sensor/Wallbox missing'}")
+    table(["CP", "reg", "sensor", "Wallbox", "wiring", "verdict"], rf_rows)
+    A.check(f"{tag}: X275 is a String/FC03 sensor whose InputRef is the only source of "
+            f"each CP's Wallbox 'user' (Uid) input", rf_ok, "; ".join(rf_detail))
+    reads_canned = read_sensors(objs, CannedReader(canned))
+    ev_canned = evaluate(objs, conn_index, reads_canned, 7.4)
+    cn_ok, cn_detail = True, []
+    for cp in (cps or [1]):
+        wb = wb_by_cp.get(cp)
+        got = ev_canned.wallbox_inputs.get(wb.title or wb.uuid, {}).get("user") if wb else None
+        ok = got == tag_by_cp[cp]
+        cn_ok &= ok
+        cn_detail.append(f"CP{cp}: canned {tag_by_cp[cp]!r} -> user {got!r}")
+    A.check(f"{tag}: canned X275 registers decode to the tag and arrive on the SAME CP's "
+            f"Wallbox 'user' input (offline; 10-word decode is OUR guess)", cn_ok,
+            "; ".join(cn_detail))
+    print("\n  NOTE: X275 is STICKY (keeps the previous card until the next tap) and the")
+    print("        X308 reset register was measured inert, so nothing writes it.  How many")
+    print("        registers Loxone reads for a String is UNVERIFIED -- confirm in Config.")
+
     # ---- 11g. live scenarios --------------------------------------------
     if args.no_sim:
         print("\n  (--no-sim: skipping live register evaluation)")
@@ -1262,9 +1355,9 @@ def run_project(path: pathlib.Path, args, sim: Sim, A: Asserts) -> None:
             wb_rows = []
             for name, d in ev.wallbox_inputs.items():
                 wb_rows.append([name, fmt(d["connected"]), fmt(d["power"], 6),
-                                fmt(d["energy"], 9), fmt(d["active"])])
-            table(["wallbox", "connected (Vc)", "power [kW]", "energy [kWh]", "active (Cac)"],
-                  wb_rows)
+                                fmt(d["energy"], 9), fmt(d["active"]), fmt(d["user"])])
+            table(["wallbox", "connected (Vc)", "power [kW]", "energy [kWh]", "active (Cac)",
+                   "user (Uid)"], wb_rows)
 
             print(f"\n  Modbus writes the Miniserver would issue "
                   f"(Wallbox outLimit injected = {args.outlimit} kW):")
@@ -1273,15 +1366,13 @@ def run_project(path: pathlib.Path, args, sim: Sim, A: Asserts) -> None:
                     fmt(w["input"]), w["written"], w["repeat"]] for w in ev.writes])
 
             # Diagnostic probe: registers the charger has but the PROJECT DOES NOT MAP.
-            # X275 (RFID tag of the running session) is the interesting one -- a
-            # ModbusDataType=101 String input would be needed and neither project has
-            # one, so the RFID scenario is invisible to the Loxone side.
+            # (X275, the last RFID card, used to sit here; it is a mapped String
+            # input since F13 and is asserted on below like any other sensor.)
             probe_rows = []
             for cp in (cps or [1]):
                 mapped = {int(o.attrs["ModbusAddress"]) for o in objs
                           if o.attrs.get("ModbusAddress")}
-                for suffix, label, dcode in ((275, "RFID tag (X275)", 101),
-                                             (296, "Max current HW limit (X296)", 96)):
+                for suffix, label, dcode in ((296, "Max current HW limit (X296)", 96),):
                     a = cp * 1000 + suffix
                     if a in mapped:
                         continue
@@ -1291,16 +1382,8 @@ def run_project(path: pathlib.Path, args, sim: Sim, A: Asserts) -> None:
                                        " ".join(str(x) for x in regs) if regs else "-",
                                        repr(decode(regs, dcode)) if regs else "-",
                                        "NOT MAPPED by this project"])
-            if scen.startswith("rfid"):
-                want = (scen.split(None, 1)[1].strip().upper() if " " in scen
-                        else "04A1B2C3D4E5F6")
-                got = next((r[5] for r in probe_rows if "RFID" in r[1]), None)
-                A.check(f"{tag}/{scen}: X275 decodes as the ASCII tag {want!r} "
-                        f"(OUR decoder -- Loxone's ModbusDataType=101 is UNVERIFIED)",
-                        got is not None and want in got, f"got {got}")
             if probe_rows:
-                print("\n  Probe of registers the project does NOT map "
-                      "(string decode is an UNVERIFIED guess):")
+                print("\n  Probe of registers the project does NOT map:")
                 table(["CP", "register", "reg", "type", "raw words", "decoded", "note"],
                       probe_rows)
 
@@ -1310,6 +1393,31 @@ def run_project(path: pathlib.Path, args, sim: Sim, A: Asserts) -> None:
                     if r.addr == cp * 1000 + suffix:
                         return r
                 return None
+
+            if scen.startswith("rfid"):
+                # The simulator takes ONE tag per scenario line and drives CP1
+                # only (2xxx reads back all zero); the tag assertion is made on
+                # every CP whose X275 reads non-empty, the wiring assertion
+                # (sensor text == Wallbox user input) on every CP regardless.
+                want = (scen.split(None, 1)[1].strip().upper() if " " in scen
+                        else "04A1B2C3D4E5F6")
+                for cp in (cps or [1]):
+                    rf = sensor_by_reg(275, cp)
+                    wbname = next((n for n in ev.wallbox_inputs
+                                   if (f"CP{cp}" in n) or len(ev.wallbox_inputs) == 1), None)
+                    got = rf.raw if rf and isinstance(rf.raw, str) else None
+                    user = ev.wallbox_inputs[wbname]["user"] if wbname else None
+                    A.check(f"{tag}/{scen}/CP{cp}: X275 is a mapped String sensor and its "
+                            f"text reaches the Wallbox 'user' (Uid) input",
+                            rf is not None and got is not None and wbname is not None
+                            and user == got, f"sensor={got!r} user={user!r}")
+                    if got:
+                        A.check(f"{tag}/{scen}/CP{cp}: X275 decodes as the ASCII tag {want!r} "
+                                f"(OUR decoder -- Loxone's String register count is UNVERIFIED)",
+                                got == want, f"got {got!r}")
+                    else:
+                        print(f"  (CP{cp} X275 reads empty -- the simulator does not drive "
+                              f"this CP; tag assertion skipped, wiring assertion kept)")
 
             for cp in (cps or [1]):
                 vs = sensor_by_reg(299, cp)
@@ -1448,7 +1556,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         "That RepeatRate really re-sends the value (the whole watchdog keep-alive story).",
         "That the Wallbox block behaves as documented -- it is a stub here; outLimit is",
         "  injected, its mode/session/load-shed logic is not modelled at all.",
-        "That ModbusDataType=101 really reads a string, or how many registers it reads.",
+        "That ModbusDataType=101 really reads a string, or how many registers Loxone reads",
+        "  for one (X275 has 10 on the charger; the Wallbox Uid path is checked with OUR decoder).",
         "Byte/word order: assumed big-endian, high word first.  No attribute states it.",
         "What Loxone does with a value outside MinVal/MaxVal (clamp vs substitute vs drop).",
         "Any timing behaviour: polling cycles, MinTime/MaxTime/MinChange, block scheduling.",

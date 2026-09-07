@@ -855,6 +855,12 @@
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
 								<Display Type="2" Unit="&lt;v.1&gt;" StateOnly="true"/>
 							</C>
+							<C Type="ModbusASensor" Desc="Last RFID card UID as ASCII text (CHARX X275: 10 holding registers, big-endian, NUL-padded; 14 hex characters for a 7-byte card). Sticky: keeps the previous card until a DIFFERENT card is tapped (same card again = no change). Verified in OCPP release mode on firmware 1.7.3 only. TO CONFIRM in Loxone Config: how many registers the String data type reads - the value should show exactly the 14 characters; fewer means fewer registers are read, extra characters after the UID (or the input offline) mean more than 10 and a spill into X285-X294 - report either." IName="AMQ70" V="172" U="1f77ec02-0300-0120-ffff721cca2b7737" Title="CP1 Last RFID card" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="1275" ModbusDataType="101" ModbusCmd="3" ModbusPollingCycle="5" SourceValHigh="10" DestValHigh="10" MinVal="0" MaxVal="65535" MinChange="0.25" MinTime="1000" MaxTime="1500000">
+								<Co K="Q" U="1f77ec02-0300-0121-00ff5c94323c6157"/>
+								<Co K="Qe" U="1f77ec02-0300-0122-01ff5c94323c6157"/>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
+								<Display Type="2" Unit="&lt;v&gt;" StateOnly="true"/>
+							</C>
 							<C Type="ModbusASensor" IName="AMQ40" V="172" U="1f77ec01-0200-0000-ffff721cca2b7737" Title="CP2 Counter Active Energy" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="2250" ModbusDataType="102" ModbusCmd="3" ModbusPollingCycle="60" SourceValLow="1" DestValLow="0.001" SourceValHigh="100" DestValHigh="0.1" MinVal="0" MaxVal="100000000" MinChange="0.25" MinTime="1000" MaxTime="300000">
 								<Co K="Q" U="1f77ec01-0200-0001-00ffb08685efacf6"/>
 								<Co K="Qe" U="1f77ec01-0200-0002-01ffb08685efacf6"/>
@@ -926,6 +932,12 @@
 								<Co K="Qe" U="1f77ec01-0200-0023-01ff5c94323c6157"/>
 								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
 								<Display Type="2" Unit="&lt;v.1&gt;" StateOnly="true"/>
+							</C>
+							<C Type="ModbusASensor" Desc="Last RFID card UID as ASCII text (CHARX X275: 10 holding registers, big-endian, NUL-padded; 14 hex characters for a 7-byte card). Sticky: keeps the previous card until a DIFFERENT card is tapped (same card again = no change). Verified in OCPP release mode on firmware 1.7.3 only. TO CONFIRM in Loxone Config: how many registers the String data type reads - the value should show exactly the 14 characters; fewer means fewer registers are read, extra characters after the UID (or the input offline) mean more than 10 and a spill into X285-X294 - report either." IName="AMQ71" V="172" U="1f77ec02-0300-0220-ffff721cca2b7737" Title="CP2 Last RFID card" Nio="2" WF="16400" ValOT="1" Analog="true" ModbusAddress="2275" ModbusDataType="101" ModbusCmd="3" ModbusPollingCycle="5" SourceValHigh="10" DestValHigh="10" MinVal="0" MaxVal="65535" MinChange="0.25" MinTime="1000" MaxTime="1500000">
+								<Co K="Q" U="1f77ec02-0300-0221-00ff5c94323c6157"/>
+								<Co K="Qe" U="1f77ec02-0300-0222-01ff5c94323c6157"/>
+								<IoData Cr="1f77db81-02f2-3e1b-ffff721cca2b7737" Pr="1f77db81-02e8-3d93-ffff721cca2b7737" St="4"/>
+								<Display Type="2" Unit="&lt;v&gt;" StateOnly="true"/>
 							</C>
 						</C>
 						<C Type="ActorCaption" V="172" U="1f77dbb1-03db-549d-ffff721cca2b7737" Title="Actuators" WF="16384">
@@ -1484,6 +1496,16 @@
 					<Co K="AQ" U="1f77e8ca-03b3-2f4f-02ff3f3b9cec55fc"/>
 					<Co K="Q" U="1f77e8ca-03b3-2f50-03ff3f3b9cec55fc"/>
 				</C>
+				<C Type="InputRef" V="172" U="1f77ec02-0300-0123-ffff721cca2b7737" Title="CP1 Last RFID card" Px="4128" Py="3072" Px2="6240" Py2="3264" Cl="238,238,238" Nio="4" Ref="1f77ec02-0300-0120-ffff721cca2b7737" Analog="true" LinkRefType="153">
+					<Co K="AI" Nc="1" U="1f77ec02-0300-0124-00ff3f3b9cec55fc">
+						<In Input="1f77ec02-0300-0121-00ff5c94323c6157"/>
+					</Co>
+					<Co K="I" Nc="1" U="1f77ec02-0300-0125-01ff3f3b9cec55fc">
+						<In Input="1f77ec02-0300-0122-01ff5c94323c6157"/>
+					</Co>
+					<Co K="AQ" U="1f77ec02-0300-0126-02ff3f3b9cec55fc"/>
+					<Co K="Q" U="1f77ec02-0300-0127-03ff3f3b9cec55fc"/>
+				</C>
 				<C Type="Wallbox" V="172" U="1f77de1c-0394-6584-ffff721cca2b7737" Title="Wallbox CP1" Px="7200" Py="1824" Px2="9888" Py2="3480" Cl="0,143,187" Nio="55" LtE="527949407" PwrN="Power" Un1="&lt;v.3&gt;kW" Un2="&lt;v.1&gt;kWh" Rec="" P1="4.16" P2="11" SpStates="1f77de1c-0394-6547-ffff382d3f6a35a1,1f77de1c-0394-6548-ffff382d3f6a35a1,1f77de1c-0394-6549-ffff382d3f6a35a1,1f77de1c-0394-654a-ffff382d3f6a35a1,1f77de1c-0394-654b-ffff382d3f6a35a1,1f77de1c-0394-654c-ffff382d3f6a35a1" StatsType="8" TRK_NE="100" TRK_MAX="100">
 					<Co K="allow" Inv="true" U="1f77de1c-0394-654d-00ff382d3f6a35a1"/>
 					<Co K="prio" U="1f77de1c-0394-654e-01ff382d3f6a35a1"/>
@@ -1518,7 +1540,9 @@
 					<Co K="pricemode4" U="1f77de1c-0394-6563-16ff382d3f6a35a1"/>
 					<Co K="pricemode5" U="1f77de1c-0394-6564-17ff382d3f6a35a1"/>
 					<Co K="pricemode6" U="1f77de1c-0394-6565-18ff382d3f6a35a1"/>
-					<Co K="user" U="1f77de1c-0394-6566-19ff382d3f6a35a1"/>
+					<Co K="user" Nc="1" U="1f77de1c-0394-6566-19ff382d3f6a35a1">
+						<In Input="1f77ec02-0300-0126-02ff3f3b9cec55fc"/>
+					</Co>
 					<Co K="loadshed" U="1f77de1c-0394-6567-1aff382d3f6a35a1"/>
 					<Co K="off" U="1f77de1c-0394-6568-1bff382d3f6a35a1"/>
 					<Co K="resetM" U="1f77de1c-0394-6569-1cff382d3f6a35a1"/>
@@ -1734,6 +1758,16 @@ active" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0
 					<Co K="AQ" U="1f77ec01-0200-0041-02ff3f3b9cec55fc"/>
 					<Co K="Q" U="1f77ec01-0200-0042-03ff3f3b9cec55fc"/>
 				</C>
+				<C Type="InputRef" V="172" U="1f77ec02-0300-0223-ffff721cca2b7737" Title="CP2 Last RFID card" Px="4128" Py="13072" Px2="6240" Py2="13264" Cl="238,238,238" Nio="4" Ref="1f77ec02-0300-0220-ffff721cca2b7737" Analog="true" LinkRefType="153">
+					<Co K="AI" Nc="1" U="1f77ec02-0300-0224-00ff3f3b9cec55fc">
+						<In Input="1f77ec02-0300-0221-00ff5c94323c6157"/>
+					</Co>
+					<Co K="I" Nc="1" U="1f77ec02-0300-0225-01ff3f3b9cec55fc">
+						<In Input="1f77ec02-0300-0222-01ff5c94323c6157"/>
+					</Co>
+					<Co K="AQ" U="1f77ec02-0300-0226-02ff3f3b9cec55fc"/>
+					<Co K="Q" U="1f77ec02-0300-0227-03ff3f3b9cec55fc"/>
+				</C>
 				<C Type="Wallbox" V="172" U="1f77ec01-0200-0043-ffff721cca2b7737" Title="Wallbox CP2" Px="7200" Py="11824" Px2="9888" Py2="13480" Cl="0,143,187" Nio="55" LtE="527949407" PwrN="Power" Un1="&lt;v.3&gt;kW" Un2="&lt;v.1&gt;kWh" Rec="" P1="4.16" P2="11" SpStates="1f77ec01-0200-00a9-ffff382d3f6a35a1,1f77ec01-0200-00aa-ffff382d3f6a35a1,1f77ec01-0200-00ab-ffff382d3f6a35a1,1f77ec01-0200-00ac-ffff382d3f6a35a1,1f77ec01-0200-00ad-ffff382d3f6a35a1,1f77ec01-0200-00ae-ffff382d3f6a35a1" StatsType="8" TRK_NE="100" TRK_MAX="100">
 					<Co K="allow" Inv="true" U="1f77ec01-0200-0044-00ff382d3f6a35a1"/>
 					<Co K="prio" U="1f77ec01-0200-0045-01ff382d3f6a35a1"/>
@@ -1768,7 +1802,9 @@ active" TextV="" Icon="00000000-0000-0000-0000000000000000" IcC="5292905" Input0
 					<Co K="pricemode4" U="1f77ec01-0200-005a-16ff382d3f6a35a1"/>
 					<Co K="pricemode5" U="1f77ec01-0200-005b-17ff382d3f6a35a1"/>
 					<Co K="pricemode6" U="1f77ec01-0200-005c-18ff382d3f6a35a1"/>
-					<Co K="user" U="1f77ec01-0200-005d-19ff382d3f6a35a1"/>
+					<Co K="user" Nc="1" U="1f77ec01-0200-005d-19ff382d3f6a35a1">
+						<In Input="1f77ec02-0300-0226-02ff3f3b9cec55fc"/>
+					</Co>
 					<Co K="loadshed" U="1f77ec01-0200-005e-1aff382d3f6a35a1"/>
 					<Co K="off" U="1f77ec01-0200-005f-1bff382d3f6a35a1"/>
 					<Co K="resetM" U="1f77ec01-0200-0060-1cff382d3f6a35a1"/>

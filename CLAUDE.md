@@ -16,8 +16,9 @@ over **Modbus/TCP `:502`**, surfaced through Loxone's native **Wallbox** block. 
 artefacts plus two scripts (`tools/fix-loxone-project.py` and the offline harness
 `tools/simulate-project.py`, see Run/test/build):
 `Veton.Loxone` (a Loxone Config 16.x project file, XML: Modbus server + device with
-the CHARX register map, inputs for energy/power/V/I/vehicle status/error/release mode/SOC,
-outputs for max current X301 (pause-aware since 2026-09-04: Wallbox target 0 → X301 = 0 =
+the CHARX register map, inputs for energy/power/V/I/vehicle status/error/release mode/SOC
+plus the last RFID card X275 (a String input wired to the Wallbox block's Uid input, since
+2026-09-07), outputs for max current X301 (pause-aware since 2026-09-04: Wallbox target 0 → X301 = 0 =
 pause, anything above → 6–80 A; re-sent every 60 s) plus the CHARX safety watchdog X306
 (fallback current 6 A) and X307 (timer 300 s) — the X300 release and X303 lock writes were
 dropped 2026-09-03, see Gotchas — a Wallbox block + visualisation page),
@@ -51,15 +52,20 @@ python3 -c "import xml.etree.ElementTree as ET; [ET.parse(f) for f in ('MB_Veton
 # fix pass — the only executable in the repo:
 python3 tools/fix-loxone-project.py Veton.Loxone Veton-2CP.Loxone   # apply + verify
 python3 tools/fix-loxone-project.py --check Veton.Loxone            # verify only, no writes
+# offline harness (graph health, formulas, X301 sweep, X275 -> Wallbox Uid wiring on canned
+# registers); the sim-driven mode needs pymodbus + a CHARX simulator, absent on this box:
+python3 tools/simulate-project.py --no-sim Veton.Loxone Veton-2CP.Loxone
 ```
-`tools/fix-loxone-project.py` re-applies the twelve hand fixes to the two `.Loxone` projects:
+`tools/fix-loxone-project.py` re-applies the thirteen hand fixes to the two `.Loxone` projects:
 blank the document password salt (F1), Active Power X244 correction mW→kW (F2), Counter
 Active Energy X250 `MaxVal` ceiling 10 000 → 100 000 000 (F3), drop the X300/X303 writes
 (F4), clamp the X301 setpoint to 6–80 A and unwire `mono` so only `3 fase` drives it (F5),
 add the X306/X307 watchdog (F6), audit **every** `ModbusASensor`'s `MinVal`/`MaxVal` against
 the physically possible span of its register and widen the ones that cannot show it (F7 —
 today that is only **Error Code X293**, a 32-bit *bitfield* where bit N = `2**(N-1)`, so
-±10 000 hides every fault from bit 15 up; set to `0`/`4294967295`), wrap the X301 division in
+±10 000 hides every fault from bit 15 up; set to `0`/`4294967295`; a register marked
+`"string"` in `REGISTER_SPAN` — X275 — is text and is skipped, neither widened nor reported
+NOT AUDITED), wrap the X301 division in
 `INT()` so the setpoint **truncates** instead of rounding up past the budget the Wallbox block
 asked for (F8 — 7.4 kW was 10.68 A → 11 A ≈ 7.62 kW, now 10 A), and guard the single-phase
 `mono` formula's divide-by-zero (F9 — the guard is
@@ -77,8 +83,13 @@ F5/F8/F9 clamp; final stored forms
 actuator's `RepeatRate` 3600 → **60** (F12 — re-asserts the setpoint every minute; some CHARX
 firmware has been seen to drop an external X301 back to 0 after a controller-side restart or a
 stray write, and the re-send restores it within one interval. Whether a 0 is re-sent too is
-unconfirmed — the pause is written on change either way).
-F11/F12 apply to both projects; the two templates carry F12 too (hand-edited). `mono` stays
+unconfirmed — the pause is written on change either way), and add the **last RFID card**
+(F13 — a `ModbusASensor` on X275 per charging point, `ModbusDataType="101"` = Loxone String,
+FC03, poll 5 s, plus an InputRef on the Wallbox page whose AQ is the only source of that
+point's Wallbox block `<Co K="user">` = the **Uid** input; the block is found by its `power`
+wiring, not its title; read-only, no new write — see the X275 gotcha).
+F11/F12/F13 apply to both projects; the two templates carry F12 and the F13 input too
+(hand-edited). `mono` stays
 unwired, but README tells single-phase
 installers to swap to it, so it has to be safe first. It matches on stable attribute patterns
 (`ModbusAddress=`, `Title=`, `Formula=`, `Ref=`, `Co K=`) — never on line numbers — preserves
@@ -87,7 +98,9 @@ run rewrites nothing (byte-identical). It then self-verifies (BOM, line endings,
 no dangling `<In Input>`/`Ref=`, `<C>`/`</C>` balance, strict XML well-formedness *and* the
 absence of `12hTF`, salt and `APPKEY`/`Address`/`Serial` blank, expected `ModbusAddress` set, no overlapping
 page rectangles, every sensor range wide enough for its register, both setpoint formulas
-in their final pause-aware/clamped/truncated/guarded form, and X301 `RepeatRate="60"`).
+in their final pause-aware/clamped/truncated/guarded form, X301 `RepeatRate="60"`, and per
+charging point an X275 String/FC03 sensor whose InputRef is the sole feed of that point's
+Wallbox `user` input, one Wallbox block per point, no actuator on X275/X308).
 The register spans F7 audits live in `REGISTER_SPAN` and are sourced from
 `charx-doctor/references/modbus-register-map.yaml` + `error-codes.yaml`; a sensor whose
 register is not in that table is reported as **NOT AUDITED** rather than silently passed —
@@ -118,9 +131,11 @@ Path to `main`: PR with the `ci` check green (secret scan); agents cannot push t
 - **CHARX Modbus register map** — hard-coded **four times** here (`Veton.Loxone` and
   `Veton-2CP.Loxone` device `ModbusAddress="1xxx"`/`"2xxx"` attributes, plus `MB_Veton.xml` and
   `MB_Veton_CP2.xml` `ModbusAddress`), charging point 1 = `1xxx`, point 2 = `2xxx`, others at
-  `connector × 1000`. Same map in `Veton-EMS-Integration/docs/modbus.md`, `vetonlm/registers`,
-  `savings-collector`, `charx-doctor/references`, `veton-ha` and the internal charger-agent
-  repos. Change a register → change **all four files here** and check the other copies.
+  `connector × 1000`. X275 (last RFID card) is in all four since 2026-09-07; the sibling HA
+  integration reads it too. Same map in `Veton-EMS-Integration/docs/modbus.md`,
+  `vetonlm/registers`, `savings-collector`, `charx-doctor/references`, `veton-ha` and the
+  internal charger-agent repos. Change a register → change **all four files here** and check
+  the other copies.
 - **`Veton-ev/Veton-EMS-Integration`** is the documented reference and states the integration
   policy; **`Veton-ev/HA-Veton`** is the sibling integration. Keep the three consistent.
 See the internal handbook's seams page.
@@ -216,6 +231,40 @@ See the internal handbook's seams page.
   for template users
   ("After importing the template"). Do not invent those attributes in `MB_Veton*.xml` —
   Loxone Config would reject or ignore the import.
+- **X275 (last RFID card) is sticky, X308 is inert, and the String register count is
+  unverified in Config.** X275 holds the UID of the card *last presented* as ASCII (10
+  holding registers on the charger, big-endian, NUL-padded; 14 hex characters for a 7-byte
+  card) and keeps it until the next tap — verified on production chargers in **OCPP release
+  mode** (firmware 1.7.3) against the charger's own RFID events; Modbus, Always and other
+  release modes and firmware 1.9.x were **not** measured (a unit in Always mode read empty
+  because no card had been presented). X275 only *changes* when a **different** card is
+  tapped — the same card twice produces no change, so a single-driver household shows a
+  constant Uid after the first tap; whether the Wallbox block attributes each session from
+  the standing Uid (sampled at session start) or only reacts to a Uid change is unverified
+  on the Loxone side (README gives the two-session/two-card recipe). *If* the block samples
+  Uid: at plug-in it first sees the *previous* card and only reassigns the session on the
+  next tap (and only to a Loxone user with a *User ID*); an app/remote start without a tap
+  inherits the previous card, and the block's cost outputs follow the Uid. X308 ("reset last
+  RFID", write > 0) was **measured inert on firmware 1.7.3** (acknowledged, X275 unchanged;
+  not re-tested on 1.9.x) — so it is **deliberately not written**, and `--check` fails on
+  any actuator at X275/X308. Loxone's attribute vocabulary has **no string-length
+  attribute**, so how many registers Config reads for `ModbusDataType="101"` is
+  **unverified**: the simulator's 10-word decode is what the charger exposes, not what
+  Loxone reads; a read longer than 10 spills into X285–X294 (extra characters after the
+  UID, or the input offline on a Modbus exception). **F13's sensor shape is cloned, not
+  designed:** `MinVal/MaxVal/MinChange/MinTime/MaxTime/SourceValHigh/DestValHigh`, `ValOT`,
+  the InputRef's `Analog="true"`/`LinkRefType="153"` and `Display Unit="<v>"` are copied
+  from the analog X299 sensor for *shape only*; their effect on a String input is
+  unverified (worst case: a numeric `MinChange` parse suppresses updates between similar
+  UIDs). The right fix is to create one String Modbus input in Loxone Config, save, diff
+  what Config writes, and adopt that shape in F13. Config checklist (also in README
+  "confirm in Loxone Config"): String connector shown as text; `user` wire survives
+  save/reload; value shows the full UID; two similar cards both propagate; the same card
+  twice attributes both sessions. Do: keep the input read-only, keep the README note, tell
+  users to set *User ID* to what the input actually shows, keep the privacy note (the UID
+  is personal data and, with a whitelist, the credential). Don't: add an X308 write, invent
+  a length attribute, claim the 14 characters are verified on the Loxone side, claim X275
+  is populated regardless of release mode, or "fix" the F7 `"string"` marker into a numeric range.
 - `docs/images/wallbox-preview.svg` is a **mockup**, not a screenshot (README says so). Do not
   present it as the real Loxone UI.
 - `Veton.Loxone` is 130 KB of generated XML with GUIDs — review diffs semantically (which

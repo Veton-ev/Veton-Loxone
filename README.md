@@ -21,7 +21,8 @@ this project — is in the [changelog](CHANGELOG.md).
 - **`Veton.Loxone`** — a Loxone Config project (Config 16.x) containing:
   - a **Modbus server + device** preconfigured with the CHARX register map,
   - the charger's metering + status mapped to inputs (energy, power, per-phase
-    voltage & current, vehicle status, error code, release mode, SOC),
+    voltage & current, vehicle status, error code, release mode, SOC, last RFID
+    card → the Wallbox block's **Uid** input),
   - write outputs for **max charging current** (X301) and the **CHARX safety
     watchdog** (X306 fallback current + X307 timer),
   - a **Wallbox** function block and a visualization page.
@@ -29,7 +30,7 @@ this project — is in the [changelog](CHANGELOG.md).
   one Modbus device carrying both points (CP1 on `1xxx`, CP2 on `2xxx`), with the
   Wallbox block, formulas and visualization mirrored per point.
 - **`MB_Veton.xml`** — a **Modbus device template** (the format the Loxone
-  Library expects). Importing it adds the CHARX register map (12 sensors +
+  Library expects). Importing it adds the CHARX register map (13 sensors +
   3 actuators) to a Modbus device in one step, without the rest of the
   project. Targets **charging point 1** (`1xxx`). Three of the inputs need a
   manual validity-range fix after import — see
@@ -113,6 +114,7 @@ Two consequences of that mode:
 | Voltage L1 / L2 / L3 | X232 / X234 / X236 | read |
 | Current L1 / L2 / L3 | X238 / X240 / X242 | read |
 | Vehicle status | X299 | read |
+| Last RFID card | X275 | read (5 s), text |
 | Charging release mode | X120 | read |
 | SOC | X264 | read |
 | Error code | X293 | read |
@@ -247,6 +249,86 @@ both with **Formula** blocks fed from the *Vehicle status* input:
 
 Both are **0 for A (no vehicle) and for the fault states E0/F0/IN**. Wire the
 same two formulas if you build the project yourself from `MB_Veton.xml`.
+
+### RFID card → Wallbox **Uid** (user attribution)
+
+The *Last RFID card* input reads `X275`, where the CHARX keeps the UID of the
+card **last presented** as ASCII text: 10 holding registers, big-endian,
+NUL-padded — 14 hex characters for a 7-byte card (`04A1B2C3D4E5F6`), 8 for a
+4-byte card. It is read every 5 s as a Loxone **String** input
+(`ModbusDataType="101"`, plain FC03, nothing is written) and wired straight
+to the Wallbox block's **Uid (User ID)** input in both projects. That is what
+should attribute a session to a person: the block's charge log records the
+Uid, its own `Uid` output echoes it, and the app's history should then show
+who charged (see Loxone's [Wallbox block](https://www.loxone.com/enus/kb/wallbox-block/)
+documentation). The block's **price/cost outputs and charge log follow the
+Uid** as well, so a mis-attributed session is also *priced* under that card
+holder — this matters on shared or tenant chargers.
+
+To make it match, give each Loxone user a **User ID** typed exactly as the
+*Last RFID card* input shows it: uppercase hex, no separators (`1A9998DA`,
+`04A1B2C3D4E5F6`; see the user's properties in Loxone Config). Note:
+
+- A 4-byte card gives 8 characters, a 7-byte card 14 — one person with two
+  cards needs the Uid matched per card (one Loxone user per card, or a Uid
+  mapping in front of the block).
+- The NFC tags stored on a Loxone user are **not** what the Wallbox block
+  matches on; only the *User ID* property is.
+- Whether the match is case-sensitive is unverified — use uppercase, as the
+  input shows it.
+- Per Loxone's documentation a session is reassigned to a driver who taps
+  while the car is already plugged in **only if that user has a valid User
+  ID set**; drivers without one are logged as whoever the block already held.
+
+**Privacy / security.** The card UID is personal data and, on a CHARX with a
+UID whitelist, it is the authorisation credential itself. The input sits on
+the Wallbox visualisation page and the UID lands in the block's `Uid` output,
+the charge log and the Miniserver statistics — visible to every Loxone user
+with access to that page. Remove the input from the visualisation for
+non-admin users, and be aware that the Miniserver retains the UID in its
+logs/statistics.
+
+What is measured and what is not:
+
+- The register contents were verified on production chargers in **OCPP
+  release mode** (firmware 1.7.3) against the charger's own RFID event stream.
+  Modbus, Always and the other release modes, and firmware 1.9.x, were **not**
+  measured — a unit in Always mode read empty because no card had ever been
+  presented to it.
+- `X275` is **sticky**, and it only changes when a **different** card is
+  tapped: the same driver tapping the same card produces no change at all, so
+  in a single-driver household the Uid text is constant after the first tap.
+  Whether the Wallbox block attributes each new session from the *standing*
+  Uid value (sampled at session start) or only reacts to a *change* of Uid is
+  **not verified** on the Loxone side. *If* the block samples Uid, the
+  expected behaviour is: at plug-in the block first sees the *previous* card;
+  once the new driver taps, the Uid changes and Loxone reassigns the session
+  (User ID permitting); a session started **without a tap** — from the Veton
+  app or remotely — inherits the previous card and is attributed (and priced)
+  to that person. Verify it: in Loxone Config with a charger, tap the same card
+  for two consecutive sessions and read the charge log (`Lcl`) — both sessions
+  should carry that card; then tap two cards that differ only in their last
+  characters and confirm both propagate.
+- The CHARX has a "reset last RFID" register (`X308`, write > 0). It was
+  **measured inert on firmware 1.7.3** (write acknowledged, `X275` unchanged;
+  not re-tested on 1.9.x), so this project deliberately does not write it; the
+  sticky behaviour above is what you get.
+- **Confirm the register count in Loxone Config.** Loxone has no attribute
+  for the length of a String input, so how many registers it reads is not
+  documented. Open the project against a charger and look at the *Last RFID
+  card* value. The full 14 characters of a 7-byte card means it reads enough.
+  Fewer characters means Loxone reads fewer registers — the shortened value
+  may not be unique (the first byte of a 7-byte NXP card is always `04`), so
+  check for collisions and set the users' IDs to what the input actually
+  shows. *More* than 10 registers spills the read into `X285`–`X294`
+  (connection time, energy, error bitfield): the symptom is characters
+  appended after the UID, so the value never equals the card and User ID
+  matching fails, or the input going offline (Modbus exception) if the span
+  crosses an unmapped address. In both cases the sensor needs a shorter read
+  — please report it. While you are there, run the checklist compactly: the
+  String connector shows as text; the `user` wire survives save/reload; the
+  value shows the full UID; two similar cards both propagate; the same card
+  twice attributes both sessions.
 
 ## Setpoint: three-phase (default) vs single-phase (`mono`)
 
@@ -394,7 +476,7 @@ mirrored per point:
 
 | Per charging point | CP1 | CP2 |
 |---|---|---|
-| Modbus sensors / actuators | 12 + 3 @ `1xxx` | 12 + 3 @ `2xxx` |
+| Modbus sensors / actuators | 13 + 3 @ `1xxx` | 13 + 3 @ `2xxx` |
 | Wallbox block | `Wallbox CP1` | `Wallbox CP2` |
 | Vc / Cac formulas | `CP1 Vehicle connected` / `CP1 Charging active` | `CP2 …` |
 | Error status block | `CP1 Error` | `CP2 Error` |
@@ -417,7 +499,10 @@ For just the charger I/O (no full project), use the Modbus device template:
    `…\LoxoneConfig <ver>\ENG\Comm\` on older builds. The filename **must** keep
    the `MB_` prefix.)*
 2. Add the device, set the charger's **IP** (port `502`), then wire the inputs/
-   outputs to a Wallbox block.
+   outputs to a Wallbox block. The template's *Last RFID card* input (X275,
+   String, 5 s) goes to the block's **Uid** input — see
+   [RFID card → Wallbox Uid](#rfid-card--wallbox-uid-user-attribution); it
+   needs no range fix.
 
 The template targets **charging point 1** (registers `1xxx`); for more points,
 offset every address by `connector × 1000` (see above).
